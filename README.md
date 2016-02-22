@@ -1,6 +1,8 @@
-# Pigeon - Cloud Vision API on Golang
+# Pigeon - Google Cloud Vision API on Golang
 
 `pigeon` is a wrapper service for the Google Cloud Vision API on Golang.
+
+- [My Post is here](http://kaneshin.github.io/2016/02/21/go-cloud-vision-api/)
 
 ## Prerequisite
 
