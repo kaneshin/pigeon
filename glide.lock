@@ -1,0 +1,133 @@
+hash: a613b828f623ccfcc83f8dcb3bb4eb1a24a56f4d65e2a88d7964c67e81781adb
+updated: 2016-02-22T11:28:00.752145547Z
+imports:
+- name: github.com/davecgh/go-spew
+  version: 2df174808ee097f90d259e432cc04442cf60be21
+  subpackages:
+  - spew
+- name: github.com/golang/glog
+  version: 23def4e6c14b4da8ac2ed8007337bc5eb5007998
+- name: github.com/golang/protobuf
+  version: 127091107ff5f822298f1faa7487ffcf578adcf6
+  subpackages:
+  - proto
+  - proto/testdata
+- name: github.com/pmezard/go-difflib
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  subpackages:
+  - difflib
+- name: github.com/stretchr/objx
+  version: cbeaeb16a013161a98496fad62933b1d21786672
+- name: github.com/stretchr/testify
+  version: 1f4a1643a57e798696635ea4c126e9127adb7d3c
+  subpackages:
+  - assert
+  - http
+  - mock
+- name: golang.org/x/crypto
+  version: 1f22c0103821b9390939b6776727195525381532
+  subpackages:
+  - ssh/terminal
+- name: golang.org/x/net
+  version: b6d7b1396ec874c3b00f6c84cd4301a17c56c8ed
+  subpackages:
+  - context
+  - html/atom
+  - http2/hpack
+  - internal/iana
+  - ipv4
+  - ipv6
+  - webdav/internal/xml
+- name: golang.org/x/oauth2
+  version: 2cd4472c321b6cba78e029d99f0e7fe51032fd21
+  subpackages:
+  - google
+  - internal
+  - jws
+  - jwt
+- name: golang.org/x/text
+  version: 07b9a78963006a15c538ec5175243979025fa7a8
+  subpackages:
+  - encoding
+  - encoding/charmap
+  - encoding/htmlindex
+  - transform
+  - encoding/internal/identifier
+  - encoding/internal
+  - encoding/japanese
+  - encoding/korean
+  - encoding/simplifiedchinese
+  - encoding/traditionalchinese
+  - encoding/unicode
+  - language
+  - internal/utf8internal
+  - runes
+  - internal/tag
+- name: google.golang.org/api
+  version: e6294e63a06b2be522ff3d328d8cacded0b1bd31
+  subpackages:
+  - vision/...
+  - gensupport
+  - googleapi
+  - fitness/v1
+  - gmail/v1
+  - mapsengine/v1
+  - mirror/v1
+  - prediction/v1.6
+  - pubsub/v1beta2
+  - storage/v1
+  - tasks/v1
+  - urlshortener/v1
+  - youtube/v3
+  - googleapi/internal/uritemplates
+- name: google.golang.org/appengine
+  version: 6a436539be38c296a8075a871cc536686b458371
+  subpackages:
+  - log
+  - user
+  - file
+  - internal
+  - internal/app_identity
+  - internal/modules
+  - datastore
+  - internal/base
+  - internal/blobstore
+  - internal/capability
+  - internal/channel
+  - internal/datastore
+  - taskqueue
+  - internal/image
+  - internal/log
+  - internal/remote_api
+- name: google.golang.org/cloud
+  version: 872c736f496c2ba12786bedbb8325576bbdb33cf
+  subpackages:
+  - compute/metadata
+  - internal
+  - bigtable/internal/cluster_service_proto
+  - bigtable/internal/data_proto
+  - bigtable/internal/duration_proto
+  - bigtable/internal/service_proto
+  - bigtable/internal/table_data_proto
+  - bigtable/internal/table_service_proto
+  - bigtable/internal/empty
+  - bigtable/internal/cbtrc
+  - pubsub
+  - storage
+- name: google.golang.org/grpc
+  version: 178b68e2819d3ed711040301c12f3f97b6c270ce
+  subpackages:
+  - credentials
+  - credentials/oauth
+  - codes
+  - grpclog
+  - metadata
+  - naming
+  - transport
+  - benchmark/grpc_testing
+  - benchmark/stats
+  - examples/helloworld/helloworld
+  - examples/route_guide/routeguide
+  - health/grpc_health_v1alpha
+  - interop/grpc_testing
+devImports: []

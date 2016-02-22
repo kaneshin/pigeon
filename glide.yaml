@@ -1,0 +1,14 @@
+package: github.com/kaneshin/pigeon
+import:
+- package: golang.org/x/oauth2
+  subpackages:
+  - google
+- package: golang.org/x/net
+  subpackages:
+  - context
+- package: google.golang.org/api
+  subpackages:
+  - vision/...
+- package: github.com/stretchr/testify
+  subpackages:
+  - assert
