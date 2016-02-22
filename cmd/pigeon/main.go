@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -14,28 +13,6 @@ import (
 
 	"github.com/kaneshin/pigeon"
 )
-
-func annotateImageRequest(path string) (*vision.AnnotateImageRequest, error) {
-	b, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("Unable to read an image by file path: %v", err)
-	}
-
-	req := &vision.AnnotateImageRequest{
-		// Apply image which is encoded by base64.
-		Image: &vision.Image{
-			Content: base64.StdEncoding.EncodeToString(b),
-		},
-		// Apply features to indicate what type of image detection.
-		Features: []*vision.Feature{
-			{
-				MaxResults: 10,
-				Type:       "FACE_DETECTION",
-			},
-		},
-	}
-	return req, nil
-}
 
 func run() int {
 	// Parse arguments to run this function.
