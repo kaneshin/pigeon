@@ -21,10 +21,10 @@ Type the below command to install if you use this application on your device.
 go get github.com/kaneshin/pigeon/...
 ```
 
-Make sure that `cloudvision` was installed correctly:
+Make sure that `pigeon` was installed correctly:
 
 ```shell
-cloudvision -h
+pigeon -h
 ```
 
 ### Dependencies
@@ -45,15 +45,15 @@ See https://github.com/Masterminds/glide
 ### CLI
 
 ```shell
-go run ./cmd/cloudvision lenna.jpg
-go run ./cmd/cloudvision gs://bucket_name/lenna.jpg
+go run ./cmd/pigeon lenna.jpg
+go run ./cmd/pigeon gs://bucket_name/lenna.jpg
 ```
 
 or if you already installed as a command.
 
 ```shell
-cloudvision lenna.jpg
-cloudvision gs://bucket_name/lenna.jpg
+pigeon lenna.jpg
+pigeon gs://bucket_name/lenna.jpg
 ```
 
 ### Code
