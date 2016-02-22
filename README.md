@@ -4,8 +4,6 @@
 
 - [My Post is here](http://kaneshin.github.io/2016/02/21/go-cloud-vision-api/)
 
-![Google Cloud Vision API](https://raw.githubusercontent.com/kaneshin/pigeon/master/assets/img/go-cloud-vision-api.png)
-
 ## Prerequisite
 
 You need to export a service account json file into `GOOGLE_APPLICATION_CREDENTIALS` env variable.
