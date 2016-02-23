@@ -10,6 +10,7 @@ var (
 	emptyAnnotateImageRequest = &vision.AnnotateImageRequest{}
 )
 
+// NewBatchAnnotateImageRequest returns a pointer to a new vision's BatchAnnotateImagesRequest.
 func NewBatchAnnotateImageRequest(list []string, features ...*vision.Feature) (*vision.BatchAnnotateImagesRequest, error) {
 	batch := &vision.BatchAnnotateImagesRequest{}
 	batch.Requests = []*vision.AnnotateImageRequest{}
@@ -23,6 +24,7 @@ func NewBatchAnnotateImageRequest(list []string, features ...*vision.Feature) (*
 	return batch, nil
 }
 
+// NewAnnotateImageRequest returns a pointer to a new vision's AnnotateImagesRequest.
 func NewAnnotateImageRequest(v interface{}, features ...*vision.Feature) (*vision.AnnotateImageRequest, error) {
 	switch v.(type) {
 	case []byte:
@@ -31,20 +33,22 @@ func NewAnnotateImageRequest(v interface{}, features ...*vision.Feature) (*visio
 	case string:
 		str := v.(string)
 		if strings.HasPrefix(str, "gs://") {
-			// gs://bucket-name
+			// GcsImageUri: Google Cloud Storage image URI. It must be in the
+			// following form:
+			// "gs://bucket_name/object_name". For more
 			return NewAnnotateImageSourceRequest(str, features...)
-		} else {
-			// filepath
-			b, err := ioutil.ReadFile(str)
-			if err != nil {
-				return nil, err
-			}
-			return NewAnnotateImageRequest(b, features...)
 		}
+		// filepath
+		b, err := ioutil.ReadFile(str)
+		if err != nil {
+			return nil, err
+		}
+		return NewAnnotateImageRequest(b, features...)
 	}
 	return emptyAnnotateImageRequest, nil
 }
 
+// NewAnnotateImageContentRequest returns a pointer to a new vision's AnnotateImagesRequest.
 func NewAnnotateImageContentRequest(body []byte, features ...*vision.Feature) (*vision.AnnotateImageRequest, error) {
 	req := &vision.AnnotateImageRequest{
 		Image:    NewAnnotateImageContent(body),
@@ -53,6 +57,7 @@ func NewAnnotateImageContentRequest(body []byte, features ...*vision.Feature) (*
 	return req, nil
 }
 
+// NewAnnotateImageSourceRequest returns a pointer to a new vision's AnnotateImagesRequest.
 func NewAnnotateImageSourceRequest(source string, features ...*vision.Feature) (*vision.AnnotateImageRequest, error) {
 	req := &vision.AnnotateImageRequest{
 		Image:    NewAnnotateImageSource(source),

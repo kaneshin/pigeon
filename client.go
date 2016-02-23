@@ -12,6 +12,7 @@ import (
 )
 
 type (
+	// Client is
 	Client struct {
 		service *vision.Service
 	}
@@ -42,6 +43,7 @@ func New() (*Client, error) {
 	}, nil
 }
 
+// ImagesService returns a pointer to a vision's ImagesService object.
 func (c Client) ImagesService() *vision.ImagesService {
 	return c.service.Images
 }

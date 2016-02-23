@@ -5,13 +5,21 @@ import (
 )
 
 const (
-	TypeUnspecified = iota + 1
+	// TypeUnspecified - Unspecified feature type.
+	TypeUnspecified = iota
+	// FaceDetection - Run face detection.
 	FaceDetection
+	// LandmarkDetection - Run landmark detection.
 	LandmarkDetection
+	// LogoDetection - Run logo detection.
 	LogoDetection
+	// LabelDetection - Run label detection.
 	LabelDetection
+	// TextDetection - Run OCR.
 	TextDetection
+	// SafeSearchDetection - Run various computer vision models to
 	SafeSearchDetection
+	// ImageProperties - compute image safe-search properties.
 	ImageProperties
 )
 
@@ -38,6 +46,7 @@ func DetectionType(d int) string {
 	return ""
 }
 
+// NewFeature returns a pointer to a new vision's Feature object.
 func NewFeature(d int) *vision.Feature {
 	return &vision.Feature{Type: DetectionType(d)}
 }
