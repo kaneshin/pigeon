@@ -18,6 +18,7 @@ build:
         code: |
           cd $WERCKER_SOURCE_DIR
           go get -d ./...
+          go get -d github.com/stretchr/testify
 
     # Build the project
     - script:
