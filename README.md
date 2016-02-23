@@ -1,5 +1,7 @@
 # Pigeon - Google Cloud Vision API on Golang
 
+[![wercker status](https://app.wercker.com/status/265bd30a85f806655926be3ded5eff13/s "wercker status")](https://app.wercker.com/project/bykey/265bd30a85f806655926be3ded5eff13)
+
 `pigeon` is a wrapper service for the Google Cloud Vision API on Golang.
 
 - [My Post is here](http://kaneshin.github.io/2016/02/21/go-cloud-vision-api/)
