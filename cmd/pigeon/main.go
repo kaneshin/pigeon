@@ -13,14 +13,16 @@ import (
 )
 
 var (
-	faceDetection       = flag.Bool("face", false, "")
-	landmarkDetection   = flag.Bool("landmark", false, "")
-	logoDetection       = flag.Bool("logo", false, "")
-	labelDetection      = flag.Bool("label", false, "")
-	textDetection       = flag.Bool("text", false, "")
-	safeSearchDetection = flag.Bool("safe-search", false, "")
-	imageProperties     = flag.Bool("image-properties", false, "")
+	faceDetection       = flag.Bool("face", false, "This flag specifies the face detection of the feature")
+	landmarkDetection   = flag.Bool("landmark", false, "This flag specifies the landmark detection of the feature")
+	logoDetection       = flag.Bool("logo", false, "This flag specifies the logo detection of the feature")
+	labelDetection      = flag.Bool("label", false, "This flag specifies the label detection of the feature")
+	textDetection       = flag.Bool("text", false, "This flag specifies the text detection (OCR) of the feature")
+	safeSearchDetection = flag.Bool("safe-search", false, "This flag specifies the safe-search of the feature")
+	imageProperties     = flag.Bool("image-properties", false, "This flag specifies the image safe-search properties of the feature")
 )
+
+var defaultDetection = pigeon.LabelDetection
 
 func features() []*vision.Feature {
 	list := []int{}
@@ -48,7 +50,7 @@ func features() []*vision.Feature {
 
 	// Default
 	if len(list) == 0 {
-		list = append(list, pigeon.FaceDetection)
+		list = append(list, defaultDetection)
 	}
 
 	features := make([]*vision.Feature, len(list))
