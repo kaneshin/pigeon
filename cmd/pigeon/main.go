@@ -4,83 +4,95 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
-	"strings"
 
 	vision "google.golang.org/api/vision/v1"
 
 	"github.com/kaneshin/pigeon"
 )
 
-func run() int {
+var (
+	FaceDetection       = flag.Bool("face", false, "")
+	LandmarkDetection   = flag.Bool("landmark", false, "")
+	LogoDetection       = flag.Bool("logo", false, "")
+	LabelDetection      = flag.Bool("label", false, "")
+	TextDetection       = flag.Bool("text", false, "")
+	SafeSearchDetection = flag.Bool("safe-search", false, "")
+	ImageProperties     = flag.Bool("image-properties", false, "")
+)
+
+func features() []*vision.Feature {
+	list := []int{}
+	if *FaceDetection {
+		list = append(list, pigeon.FaceDetection)
+	}
+	if *LandmarkDetection {
+		list = append(list, pigeon.LandmarkDetection)
+	}
+	if *LogoDetection {
+		list = append(list, pigeon.LogoDetection)
+	}
+	if *LabelDetection {
+		list = append(list, pigeon.LabelDetection)
+	}
+	if *TextDetection {
+		list = append(list, pigeon.TextDetection)
+	}
+	if *SafeSearchDetection {
+		list = append(list, pigeon.SafeSearchDetection)
+	}
+	if *ImageProperties {
+		list = append(list, pigeon.ImageProperties)
+	}
+
+	// Default
+	if len(list) == 0 {
+		list = append(list, pigeon.FaceDetection)
+	}
+
+	features := make([]*vision.Feature, len(list))
+	for i := 0; i < len(list); i++ {
+		features[i] = pigeon.NewFeature(list[i])
+	}
+	return features
+}
+
+func main() {
 	// Parse arguments to run this function.
 	flag.Parse()
-	args := flag.Args()
-	if len(args) == 0 {
-		log.Printf("Argument is required.")
-		return 1
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+		flag.PrintDefaults()
+	}
+
+	if args := flag.Args(); len(args) == 0 {
+		fmt.Fprintf(os.Stderr, "pigeon [options] <source>\n")
+		os.Exit(1)
 	}
 
 	// Initialize vision service by a credentials json.
 	client, err := pigeon.New()
 	if err != nil {
-		log.Printf("Unable to retrieve vision service: %v\n", err)
-		return 1
-	}
-
-	features := []*vision.Feature{
-		pigeon.NewFeature(pigeon.FaceDetection),
-	}
-
-	// Create request by given argument (last one).
-	fp := args[len(args)-1]
-	var req *vision.AnnotateImageRequest
-	if strings.HasPrefix(fp, "gs://") {
-		// gs://bucket-name
-		req, err = pigeon.NewAnnotateImageSourceRequest(fp, features...)
-		if err != nil {
-			log.Printf("Unable to retrieve image request: %v\n", err)
-			return 1
-		}
-	} else {
-		// base64
-		b, err := ioutil.ReadFile(fp)
-		if err != nil {
-			log.Printf("Unable to read an image by file path: %v\n", err)
-			return 1
-		}
-		req, err = pigeon.NewAnnotateImageContentRequest(b, features...)
-		if err != nil {
-			log.Printf("Unable to retrieve image request: %v\n", err)
-			return 1
-		}
+		log.Fatalf("Unable to retrieve vision service: %v\n", err)
 	}
 
 	// To call multiple image annotation requests.
-	batch := &vision.BatchAnnotateImagesRequest{
-		Requests: []*vision.AnnotateImageRequest{req},
+	batch, err := pigeon.NewBatchAnnotateImageRequest(flag.Args(), features()...)
+	if err != nil {
+		log.Fatalf("Unable to retrieve image request: %v\n", err)
 	}
 
 	// Execute the "vision.images.annotate".
 	res, err := client.ImagesService().Annotate(batch).Do()
 	if err != nil {
-		log.Printf("Unable to execute images annotate requests: %v\n", err)
-		return 1
+		log.Fatalf("Unable to execute images annotate requests: %v\n", err)
 	}
 
 	// Marshal annotations from responses
 	body, err := json.MarshalIndent(res.Responses, "", "  ")
 	if err != nil {
-		log.Printf("Unable to marshal the response: %v\n", err)
-		return 1
+		log.Fatalf("Unable to marshal the response: %v\n", err)
 	}
 	fmt.Println(string(body))
-
-	return 0
-}
-
-func main() {
-	os.Exit(run())
 }
