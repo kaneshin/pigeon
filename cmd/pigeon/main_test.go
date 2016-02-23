@@ -21,7 +21,7 @@ func TestFeatures(t *testing.T) {
 	if assert.Equal(1, len(f)) {
 		feature := f[0]
 		assert.EqualValues(0, feature.MaxResults)
-		assert.Equal("FACE_DETECTION", feature.Type)
+		assert.Equal("LABEL_DETECTION", feature.Type)
 	}
 
 	*landmarkDetection = true
