@@ -13,36 +13,36 @@ import (
 )
 
 var (
-	FaceDetection       = flag.Bool("face", false, "")
-	LandmarkDetection   = flag.Bool("landmark", false, "")
-	LogoDetection       = flag.Bool("logo", false, "")
-	LabelDetection      = flag.Bool("label", false, "")
-	TextDetection       = flag.Bool("text", false, "")
-	SafeSearchDetection = flag.Bool("safe-search", false, "")
-	ImageProperties     = flag.Bool("image-properties", false, "")
+	faceDetection       = flag.Bool("face", false, "")
+	landmarkDetection   = flag.Bool("landmark", false, "")
+	logoDetection       = flag.Bool("logo", false, "")
+	labelDetection      = flag.Bool("label", false, "")
+	textDetection       = flag.Bool("text", false, "")
+	safeSearchDetection = flag.Bool("safe-search", false, "")
+	imageProperties     = flag.Bool("image-properties", false, "")
 )
 
 func features() []*vision.Feature {
 	list := []int{}
-	if *FaceDetection {
+	if *faceDetection {
 		list = append(list, pigeon.FaceDetection)
 	}
-	if *LandmarkDetection {
+	if *landmarkDetection {
 		list = append(list, pigeon.LandmarkDetection)
 	}
-	if *LogoDetection {
+	if *logoDetection {
 		list = append(list, pigeon.LogoDetection)
 	}
-	if *LabelDetection {
+	if *labelDetection {
 		list = append(list, pigeon.LabelDetection)
 	}
-	if *TextDetection {
+	if *textDetection {
 		list = append(list, pigeon.TextDetection)
 	}
-	if *SafeSearchDetection {
+	if *safeSearchDetection {
 		list = append(list, pigeon.SafeSearchDetection)
 	}
-	if *ImageProperties {
+	if *imageProperties {
 		list = append(list, pigeon.ImageProperties)
 	}
 
