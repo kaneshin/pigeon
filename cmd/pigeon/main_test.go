@@ -9,13 +9,13 @@ import (
 func TestFeatures(t *testing.T) {
 	assert := assert.New(t)
 
-	assert.False(*FaceDetection)
-	assert.False(*LandmarkDetection)
-	assert.False(*LogoDetection)
-	assert.False(*LabelDetection)
-	assert.False(*TextDetection)
-	assert.False(*SafeSearchDetection)
-	assert.False(*ImageProperties)
+	assert.False(*faceDetection)
+	assert.False(*landmarkDetection)
+	assert.False(*logoDetection)
+	assert.False(*labelDetection)
+	assert.False(*textDetection)
+	assert.False(*safeSearchDetection)
+	assert.False(*imageProperties)
 
 	f := features()
 	if assert.Equal(1, len(f)) {
@@ -24,7 +24,7 @@ func TestFeatures(t *testing.T) {
 		assert.Equal("FACE_DETECTION", feature.Type)
 	}
 
-	*LandmarkDetection = true
+	*landmarkDetection = true
 	f = features()
 	if assert.Equal(1, len(f)) {
 		feature := f[0]
@@ -32,7 +32,7 @@ func TestFeatures(t *testing.T) {
 		assert.Equal("LANDMARK_DETECTION", feature.Type)
 	}
 
-	*LogoDetection = true
+	*logoDetection = true
 	f = features()
 	if assert.Equal(2, len(f)) {
 		feature := f[0]
