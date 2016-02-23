@@ -1,0 +1,31 @@
+[
+  {
+    "labelAnnotations": [
+      {
+        "description": "clothing",
+        "mid": "/m/09j2d",
+        "score": 0.98547381
+      },
+      {
+        "description": "hair",
+        "mid": "/m/03q69",
+        "score": 0.94178885
+      },
+      {
+        "description": "hairstyle",
+        "mid": "/m/0ds4x",
+        "score": 0.85636234
+      },
+      {
+        "description": "model",
+        "mid": "/m/0d1pc",
+        "score": 0.7849946
+      },
+      {
+        "description": "woman",
+        "mid": "/m/082lw",
+        "score": 0.77166933
+      }
+    ]
+  }
+]

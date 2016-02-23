@@ -1,0 +1,10 @@
+[
+  {
+    "safeSearchAnnotation": {
+      "adult": "POSSIBLE",
+      "medical": "UNLIKELY",
+      "spoof": "VERY_UNLIKELY",
+      "violence": "VERY_UNLIKELY"
+    }
+  }
+]

@@ -1,67 +1,55 @@
 # Pigeon - Google Cloud Vision API on Golang
 
+`pigeon` is a service for the Google Cloud Vision API on Golang.
+
+## Badges
+
 [![wercker status](https://app.wercker.com/status/265bd30a85f806655926be3ded5eff13/s "wercker status")](https://app.wercker.com/project/bykey/265bd30a85f806655926be3ded5eff13)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
+[![Code Climate](https://codeclimate.com/github/kaneshin/pigeon/badges/gpa.svg)](https://codeclimate.com/github/kaneshin/pigeon)
 
-`pigeon` is a wrapper service for the Google Cloud Vision API on Golang.
-
-- [My Post is here](http://kaneshin.github.io/2016/02/21/go-cloud-vision-api/)
 
 ## Prerequisite
 
-You need to export a service account json file into `GOOGLE_APPLICATION_CREDENTIALS` env variable.
+You need to export a service account json file to `GOOGLE_APPLICATION_CREDENTIALS` variable.
 
 ```
 $ export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service_account.json
 ```
 
-Abort this execution file if you don't set the variable or unable to find the file.
-
 
 ## Installation
 
-Type the below command to install if you use this application on your device.
+Type the following command to install `pigeon`.
 
 ```shell
-go get github.com/kaneshin/pigeon/...
+$ go get github.com/kaneshin/pigeon/...
 ```
 
 Make sure that `pigeon` was installed correctly:
 
 ```shell
-pigeon -h
+$ pigeon -h
 ```
-
-### Dependencies
-
-To run this sample, you need to install this packages;
-
-- golang.org/x/net/context
-- golang.org/x/oauth2/google
-- google.golang.org/api/vision/...
-
-This sample repository is contained glide.yaml to privide `glide` command. So you should install that packages with the `glide` command.
-
-See https://github.com/Masterminds/glide
 
 
 ## Usage
 
-### CLI
+### Command
 
 ```shell
-go run ./cmd/pigeon lenna.jpg
-go run ./cmd/pigeon gs://bucket_name/lenna.jpg
+$ pigeon assets/lenna.jpg
+$ pigeon gs://bucket_name/lenna.jpg
 ```
 
-or if you already installed as a command.
+`pigeon` is available to submit request with external image source (i.e. Google Cloud Storage image location).
 
-```shell
-pigeon lenna.jpg
-pigeon gs://bucket_name/lenna.jpg
+
+### `pigeon` package
+
+```go
+import "github.com/kaneshin/pigeon"
 ```
-
-### Code
 
 #### pigeon.Client
 
@@ -118,7 +106,8 @@ features := []*vision.Feature{
 - Google Cloud Storage
 
 ```go
-req, err := pigeon.NewAnnotateImageSourceRequest("gs://bucket_name/lenna.jpg", features...)
+src := "gs://bucket_name/lenna.jpg"
+req, err := pigeon.NewAnnotateImageSourceRequest(src, features...)
 if err != nil {
 	panic(err)
 }
@@ -127,8 +116,7 @@ if err != nil {
 - Base64 Encoded String
 
 ```go
-// e.g.) fp names "example.png"
-b, err := ioutil.ReadFile(fp)
+b, err := ioutil.ReadFile(filename)
 if err != nil {
 	panic(err)
 }
@@ -142,113 +130,77 @@ if err != nil {
 
 ```go
 // To call multiple image annotation requests.
-batch := &vision.BatchAnnotateImagesRequest{
-	Requests: []*vision.AnnotateImageRequest{req},
+batch, err := pigeon.NewBatchAnnotateImageRequest(list, features()...)
+if err != nil {
+	panic(err)
 }
 
 // Execute the "vision.images.annotate".
 res, err := client.ImagesService().Annotate(batch).Do()
 if err != nil {
-	log.Printf("Unable to execute images annotate requests: %v\n", err)
-	return 1
+	panic(err)
 }
 ```
 
 
 ## Example
 
-### input
+### Pigeon
 
-![lenna.jpg](https://raw.githubusercontent.com/kaneshin/pigeon/master/lenna.jpg)
+![pigeon](https://raw.githubusercontent.com/kaneshin/pigeon/master/assets/pigeon.png)
 
-### output
+#### input
 
-[more detail](https://github.com/kaneshin/pigeon/blob/master/result.json)
-
+```shell
+$ pigeon -label assets/pigeon.png
 ```
+
+#### output
+
+```json
 [
   {
-    "faceAnnotations": [
+    "labelAnnotations": [
       {
-        "angerLikelihood": "VERY_UNLIKELY",
-        "blurredLikelihood": "VERY_UNLIKELY",
-        "boundingPoly": {
-          "vertices": [
-            {
-              "x": 143,
-              "y": 43
-            },
-            {
-              "x": 245,
-              "y": 43
-            },
-            {
-              "x": 245,
-              "y": 163
-            },
-            {
-              "x": 143,
-              "y": 163
-            }
-          ]
-        },
-        "detectionConfidence": 0.99805844,
-        "fdBoundingPoly": {
-          "vertices": [
-            {
-              "x": 172,
-              "y": 82
-            },
-            {
-              "x": 241,
-              "y": 82
-            },
-            {
-              "x": 241,
-              "y": 151
-            },
-            {
-              "x": 172,
-              "y": 151
-            }
-          ]
-        },
-        "headwearLikelihood": "UNLIKELY",
-        "joyLikelihood": "VERY_UNLIKELY",
-        "landmarkingConfidence": 0.5350582,
-        "landmarks": [
-          {
-            "position": {
-              "x": 197.90556,
-              "y": 102.932,
-              "z": 0.00083794753
-            },
-            "type": "LEFT_EYE"
-          },
-          {
-            "position": {
-              "x": 223.43489,
-              "y": 102.72927,
-              "z": 17.352478
-            },
-            "type": "RIGHT_EYE"
-          },
-          {
-            "position": {
-              "x": 189.50327,
-              "y": 96.40799,
-              "z": -4.1362653
-            },
-            "type": "LEFT_OF_LEFT_EYEBROW"
-          },
-          ...
+        "description": "bird",
+        "mid": "/m/015p6",
+        "score": 0.825656
+      },
+      {
+        "description": "anatidae",
+        "mid": "/m/01c_0l",
+        "score": 0.58264238
+      }
+    ]
+  }
+]
 ```
 
-## TODO
 
-- More Features
-- Connect to CI
-- Test Code
+### Lenna
+
+![lenna](https://raw.githubusercontent.com/kaneshin/pigeon/master/assets/lenna.jpg)
+
+#### input
+
+```shell
+$ pigeon -safe-search assets/lenna.jpg
+```
+
+#### output
+
+```json
+[
+  {
+    "safeSearchAnnotation": {
+      "adult": "POSSIBLE",
+      "medical": "UNLIKELY",
+      "spoof": "VERY_UNLIKELY",
+      "violence": "VERY_UNLIKELY"
+    }
+  }
+]
+```
 
 
 ## License

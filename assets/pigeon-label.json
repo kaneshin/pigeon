@@ -1,0 +1,16 @@
+[
+  {
+    "labelAnnotations": [
+      {
+        "description": "bird",
+        "mid": "/m/015p6",
+        "score": 0.825656
+      },
+      {
+        "description": "anatidae",
+        "mid": "/m/01c_0l",
+        "score": 0.58264238
+      }
+    ]
+  }
+]
