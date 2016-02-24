@@ -12,3 +12,5 @@ import:
 - package: github.com/stretchr/testify
   subpackages:
   - assert
+- package: github.com/gin-gonic/gin
+- package: github.com/olahol/go-imageupload
