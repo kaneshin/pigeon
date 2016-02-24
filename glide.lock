@@ -1,17 +1,32 @@
-hash: a613b828f623ccfcc83f8dcb3bb4eb1a24a56f4d65e2a88d7964c67e81781adb
-updated: 2016-02-22T11:28:00.752145547Z
+hash: 4ba78fc0c779d5f3e4b08b2a7ffd88a3040357bdd6c1547499f1803222d5e232
+updated: 2016-02-24T15:30:52.841009563Z
 imports:
 - name: github.com/davecgh/go-spew
   version: 2df174808ee097f90d259e432cc04442cf60be21
   subpackages:
   - spew
+- name: github.com/dustin/go-broadcast
+  version: 3bdf6d4a7164a50bc19d5f230e2981d87d2584f1
+- name: github.com/gin-gonic/gin
+  version: b3878c2465f34fa1772f666fea9adf05f1dca727
+  subpackages:
+  - binding
+  - render
 - name: github.com/golang/glog
   version: 23def4e6c14b4da8ac2ed8007337bc5eb5007998
 - name: github.com/golang/protobuf
-  version: 127091107ff5f822298f1faa7487ffcf578adcf6
+  version: 2402d76f3d41f928c7902a765dfc872356dd3aad
   subpackages:
   - proto
   - proto/testdata
+- name: github.com/manucorporat/sse
+  version: ee05b128a739a0fb76c7ebd3ae4810c1de808d6d
+- name: github.com/manucorporat/stats
+  version: 8f2d6ace262eba462e9beb552382c98be51d807b
+- name: github.com/nfnt/resize
+  version: 4d93a29130b1b6aba503e2aa8b50f516213ea80e
+- name: github.com/olahol/go-imageupload
+  version: 30ddbf148dfdd8ac18234413a23aefd91dcad6e7
 - name: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
@@ -29,7 +44,7 @@ imports:
   subpackages:
   - ssh/terminal
 - name: golang.org/x/net
-  version: b6d7b1396ec874c3b00f6c84cd4301a17c56c8ed
+  version: f315505cf3349909cdf013ea56690da34e96a451
   subpackages:
   - context
   - html/atom
@@ -130,4 +145,6 @@ imports:
   - examples/route_guide/routeguide
   - health/grpc_health_v1alpha
   - interop/grpc_testing
+- name: gopkg.in/go-playground/validator.v8
+  version: c193cecd124b5cc722d7ee5538e945bdb3348435
 devImports: []
