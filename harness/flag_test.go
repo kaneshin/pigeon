@@ -1,4 +1,4 @@
-package main
+package harness
 
 import (
 	"testing"
@@ -17,7 +17,7 @@ func TestFeatures(t *testing.T) {
 	assert.False(*safeSearchDetection)
 	assert.False(*imageProperties)
 
-	f := features()
+	f := Features()
 	if assert.Equal(1, len(f)) {
 		feature := f[0]
 		assert.EqualValues(0, feature.MaxResults)
@@ -25,7 +25,7 @@ func TestFeatures(t *testing.T) {
 	}
 
 	*landmarkDetection = true
-	f = features()
+	f = Features()
 	if assert.Equal(1, len(f)) {
 		feature := f[0]
 		assert.EqualValues(0, feature.MaxResults)
@@ -33,7 +33,7 @@ func TestFeatures(t *testing.T) {
 	}
 
 	*logoDetection = true
-	f = features()
+	f = Features()
 	if assert.Equal(2, len(f)) {
 		feature := f[0]
 		assert.EqualValues(0, feature.MaxResults)

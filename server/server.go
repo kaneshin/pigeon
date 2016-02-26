@@ -3,66 +3,19 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/olahol/go-imageupload"
 	vision "google.golang.org/api/vision/v1"
-	"net/http"
 
 	"github.com/kaneshin/pigeon"
+	"github.com/kaneshin/pigeon/harness"
 )
-
-var (
-	faceDetection       = false
-	landmarkDetection   = false
-	logoDetection       = false
-	labelDetection      = false
-	textDetection       = false
-	safeSearchDetection = false
-	imageProperties     = false
-)
-
-var defaultDetection = pigeon.LabelDetection
-
-func features() []*vision.Feature {
-	list := []int{}
-	if faceDetection {
-		list = append(list, pigeon.FaceDetection)
-	}
-	if landmarkDetection {
-		list = append(list, pigeon.LandmarkDetection)
-	}
-	if logoDetection {
-		list = append(list, pigeon.LogoDetection)
-	}
-	if labelDetection {
-		list = append(list, pigeon.LabelDetection)
-	}
-	if textDetection {
-		list = append(list, pigeon.TextDetection)
-	}
-	if safeSearchDetection {
-		list = append(list, pigeon.SafeSearchDetection)
-	}
-	if imageProperties {
-		list = append(list, pigeon.ImageProperties)
-	}
-
-	// Default
-	if len(list) == 0 {
-		list = append(list, defaultDetection)
-	}
-
-	features := make([]*vision.Feature, len(list))
-	for i := 0; i < len(list); i++ {
-		features[i] = pigeon.NewFeature(list[i])
-	}
-	return features
-}
 
 func main() {
 	port := flag.Int("port", 0, "")
-	flag.Parse()
+	harness.FlagParse()
 	if *port == 0 {
 		*port = 8080
 	}
@@ -86,7 +39,7 @@ func main() {
 			return
 		}
 
-		req, err := pigeon.NewAnnotateImageContentRequest(img.Data, features()...)
+		req, err := pigeon.NewAnnotateImageContentRequest(img.Data, harness.Features()...)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, err)
 			return
