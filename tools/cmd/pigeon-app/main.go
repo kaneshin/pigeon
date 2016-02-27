@@ -3,27 +3,44 @@ package main
 import (
 	"flag"
 	"fmt"
+	"html/template"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"github.com/olahol/go-imageupload"
 	vision "google.golang.org/api/vision/v1"
 
 	"github.com/kaneshin/pigeon"
-	"github.com/kaneshin/pigeon/harness"
+	"github.com/kaneshin/pigeon/tools/cmd"
 )
 
 func main() {
 	port := flag.Int("port", 0, "")
-	harness.FlagParse()
-	if *port == 0 {
-		*port = 8080
+	flag.Parse()
+
+	args := flag.Args()
+	if len(args) == 0 {
+		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+		// Parse arguments to run this function.
+		detects := cmd.DetectionsParse([]string{})
+		detects.Usage()
+		os.Exit(1)
 	}
 
+	// Parse arguments to run this function.
+	detects := cmd.DetectionsParse(flag.Args()[1:])
+
+	// Initialize a router of gin.
 	r := gin.Default()
 
+	for k := range _bindata {
+		html := template.Must(template.New(k).Parse(string(MustAsset(k))))
+		r.SetHTMLTemplate(html)
+	}
+
 	r.GET("/", func(c *gin.Context) {
-		c.File("index.html")
+		c.HTML(http.StatusOK, "views/index.html", nil)
 	})
 
 	r.POST("/upload", func(c *gin.Context) {
@@ -39,7 +56,7 @@ func main() {
 			return
 		}
 
-		req, err := pigeon.NewAnnotateImageContentRequest(img.Data, harness.Features()...)
+		req, err := pigeon.NewAnnotateImageContentRequest(img.Data, detects.Features()...)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, err)
 			return
@@ -58,5 +75,8 @@ func main() {
 		c.JSON(http.StatusOK, res)
 	})
 
-	r.Run(fmt.Sprintf(":%d", *port))
+	if *port == 0 {
+		*port = 8080
+	}
+	fmt.Fprintf(os.Stderr, "%v\n", r.Run(fmt.Sprintf(":%d", *port)))
 }

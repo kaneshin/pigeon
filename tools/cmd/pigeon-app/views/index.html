@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>pigeon</title>
+</head>
+<body>
+    <form id="upload-form" method="POST" action="/upload" enctype="multipart/form-data">
+        <input id="image-input" type="file" name="images[]" />
+        <input id="submit" type="submit" /><br />
+        <img id="preview" style="max-height:300px" />
+    </form>
+    <pre id="result"></pre>
+
+    <script src="//ajax.googleapis.com/ajax/libs/jquery/2.2.0/jquery.min.js"></script>
+    <script>
+        jQuery(function($) {
+            $('#upload-form').submit(function(event) {
+                event.preventDefault();
+                var $form = $(this)
+                , $button = $('#submit')
+                , $result = $('#result')
+                , formData = new FormData();
+
+                formData.append('file', $('input[type=file]')[0].files[0]);
+                $button.attr('disabled', true);
+                $.ajax({
+                    url: $form.attr('action'),
+                    type: $form.attr('method'),
+                    data: formData,
+                    cache: false,
+                    processData: false,
+                    contentType: false,
+                    timeout: 10000,
+                }).done(function(res) {
+                    $result.text(JSON.stringify(res, null, 2));
+                }).fail(function(jqXHR, textStatus, errorThrown) {
+                    $result.text(textStatus);
+                }).always(function() {
+                    $button.attr('disabled', false);
+                });
+            });
+
+            // Image Preview
+            $('#image-input').change(function() {
+                files = this.files;
+                if (files && files[0]) {
+                    var reader = new FileReader();
+                    reader.onload = function(e) {
+                        $('#preview').attr('src', e.target.result);
+                    }
+                    reader.readAsDataURL(files[0]);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
