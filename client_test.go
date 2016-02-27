@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/kaneshin/pigeon/credentials"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -12,12 +13,14 @@ func TestClient(t *testing.T) {
 
 	assert := assert.New(t)
 
-	client, err := New()
+	creds := credentials.NewApplicationCredentials("")
+	client, err := New(creds)
 	assert.Nil(client)
 	assert.Error(err)
 
 	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "credentials/example.json")
-	client, err = New()
+	creds = credentials.NewApplicationCredentials("")
+	client, err = New(creds)
 	assert.NotNil(client)
 	assert.NoError(err)
 	assert.NotNil(client.service)

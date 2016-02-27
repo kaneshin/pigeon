@@ -19,8 +19,7 @@ type (
 )
 
 // New returns a pointer to a new Client object.
-func New() (*Client, error) {
-	c := credentials.NewApplicationCredentials("")
+func New(c *credentials.Credentials) (*Client, error) {
 	creds, err := c.Get()
 	if err != nil {
 		return nil, err

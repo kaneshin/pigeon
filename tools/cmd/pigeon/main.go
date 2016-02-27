@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/kaneshin/pigeon"
+	"github.com/kaneshin/pigeon/credentials"
 	"github.com/kaneshin/pigeon/tools/cmd"
 )
 
@@ -21,7 +22,8 @@ func main() {
 	}
 
 	// Initialize vision service by a credentials json.
-	client, err := pigeon.New()
+	c := credentials.NewApplicationCredentials("")
+	client, err := pigeon.New(c)
 	if err != nil {
 		log.Fatalf("Unable to retrieve vision service: %v\n", err)
 	}

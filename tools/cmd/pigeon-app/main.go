@@ -12,6 +12,7 @@ import (
 	vision "google.golang.org/api/vision/v1"
 
 	"github.com/kaneshin/pigeon"
+	"github.com/kaneshin/pigeon/credentials"
 	"github.com/kaneshin/pigeon/tools/cmd"
 )
 
@@ -21,6 +22,13 @@ func main() {
 
 	// Parse arguments to run this function.
 	detects := cmd.DetectionsParse(flag.Args()[:])
+
+	// Initialize vision service by a credentials json.
+	c := credentials.NewApplicationCredentials("")
+	client, err := pigeon.New(c)
+	if err != nil {
+		panic(err)
+	}
 
 	// Initialize a router of gin.
 	r := gin.Default()
@@ -35,12 +43,6 @@ func main() {
 	})
 
 	r.POST("/upload", func(c *gin.Context) {
-		client, err := pigeon.New()
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, err)
-			return
-		}
-
 		img, err := imageupload.Process(c.Request, "file")
 		if err != nil {
 			c.JSON(http.StatusBadRequest, err)

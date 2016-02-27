@@ -20,7 +20,7 @@ $ export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service_account.json
 
 ## Installation
 
-### `pigeon` / `pigeon-app` commands
+### `pigeon` and `pigeon-app` commands
 
 `pigeon` provides the command-line tools.
 
@@ -76,10 +76,17 @@ $ curl -XGET localhost:8080/
 
 ```go
 import "github.com/kaneshin/pigeon"
+import "github.com/kaneshin/pigeon/credentials"
 
 func main() {
 	// Initialize vision service by a credentials json.
-	client, err := pigeon.New()
+	creds := credentials.NewApplicationCredentials("credentials.json")
+
+	// creds will set a pointer of credentials object using env value of
+	// "GOOGLE_APPLICATION_CREDENTIALS" if pass empty string to argument.
+	// creds := credentials.NewApplicationCredentials("")
+
+	client, err := pigeon.New(creds)
 	if err != nil {
 		panic(err)
 	}
@@ -109,7 +116,8 @@ The `pigeon.Client` is wrapper of the `vision.Service`.
 
 ```go
 // Initialize vision client by a credentials json.
-client, err := pigeon.New()
+creds := credentials.NewApplicationCredentials("credentials.json")
+client, err := pigeon.New(creds)
 if err != nil {
 	panic(err)
 }
