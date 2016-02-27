@@ -19,17 +19,8 @@ func main() {
 	port := flag.Int("port", 0, "")
 	flag.Parse()
 
-	args := flag.Args()
-	if len(args) == 0 {
-		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
-		// Parse arguments to run this function.
-		detects := cmd.DetectionsParse([]string{})
-		detects.Usage()
-		os.Exit(1)
-	}
-
 	// Parse arguments to run this function.
-	detects := cmd.DetectionsParse(flag.Args()[1:])
+	detects := cmd.DetectionsParse(flag.Args()[:])
 
 	// Initialize a router of gin.
 	r := gin.Default()

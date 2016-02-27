@@ -20,35 +20,73 @@ $ export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service_account.json
 
 ## Installation
 
-Type the following command to install `pigeon`.
+Type the following line to install `pigeon`.
 
 ```shell
-$ go get github.com/kaneshin/pigeon/...
+$ go get github.com/kaneshin/pigeon/tools/cmd/...
 ```
 
 Make sure that `pigeon` was installed correctly:
 
 ```shell
 $ pigeon -h
+$ pigeon-app -h
 ```
 
 
 ## Usage
 
-### Command
+### `pigeon` command
 
 ```shell
+# Default Detection is LabelDetection.
 $ pigeon assets/lenna.jpg
-$ pigeon gs://bucket_name/lenna.jpg
+$ pigeon -face gs://bucket_name/lenna.jpg
 ```
 
 `pigeon` is available to submit request with external image source (i.e. Google Cloud Storage image location).
+
+
+### `pigeon-app` command
+
+```shell
+# Default port is 8080.
+# Default Detection is LabelDetection.
+$ pigeon-app
+$ pigeon-app -port=8000 -- -face -label -safe-search
+$ curl -XGET localhost:8080/
+```
 
 
 ### `pigeon` package
 
 ```go
 import "github.com/kaneshin/pigeon"
+
+func main() {
+	// Initialize vision service by a credentials json.
+	client, err := pigeon.New()
+	if err != nil {
+		panic(err)
+	}
+
+	// To call multiple image annotation requests.
+	feature := pigeon.NewFeature(pigeon.LabelDetection)
+	batch, err := pigeon.NewBatchAnnotateImageRequest([]string{"lenna.jpg"}, feature)
+	if err != nil {
+		panic(err)
+	}
+
+	// Execute the "vision.images.annotate".
+	res, err := client.ImagesService().Annotate(batch).Do()
+	if err != nil {
+		panic(err)
+	}
+
+	// Marshal annotations from responses
+	body, _ := json.MarshalIndent(res.Responses, "", "  ")
+	fmt.Println(string(body))
+}
 ```
 
 #### pigeon.Client
