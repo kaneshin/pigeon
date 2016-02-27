@@ -20,7 +20,9 @@ $ export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service_account.json
 
 ## Installation
 
-Type the following line to install `pigeon`.
+### `pigeon` / `pigeon-app` commands
+
+`pigeon` provides the command-line tools.
 
 ```shell
 $ go get github.com/kaneshin/pigeon/tools/cmd/...
@@ -33,10 +35,20 @@ $ pigeon -h
 $ pigeon-app -h
 ```
 
+### `pigeon` package
+
+Type the following line to install `pigeon` package.
+
+```shell
+$ go get github.com/kaneshin/pigeon
+```
+
 
 ## Usage
 
 ### `pigeon` command
+
+`pigeon` is available to submit request with external image source (i.e. Google Cloud Storage image location).
 
 ```shell
 # Default Detection is LabelDetection.
@@ -44,7 +56,7 @@ $ pigeon assets/lenna.jpg
 $ pigeon -face gs://bucket_name/lenna.jpg
 ```
 
-`pigeon` is available to submit request with external image source (i.e. Google Cloud Storage image location).
+![pigeon-cmd](https://raw.githubusercontent.com/kaneshin/pigeon/master/assets/pigeon-cmd.gif)
 
 
 ### `pigeon-app` command
@@ -56,6 +68,8 @@ $ pigeon-app
 $ pigeon-app -port=8000 -- -face -label -safe-search
 $ curl -XGET localhost:8080/
 ```
+
+![pigeon-app](https://raw.githubusercontent.com/kaneshin/pigeon/master/assets/pigeon-app.gif)
 
 
 ### `pigeon` package
