@@ -35,6 +35,7 @@ $ pigeon-app -port=8080 -- -face -label -safe-search
 
 ## Example
 
+![pigeon-app](https://raw.githubusercontent.com/kaneshin/pigeon/master/assets/pigeon-app.gif)
 
 
 ## License

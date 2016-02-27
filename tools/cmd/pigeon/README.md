@@ -35,6 +35,7 @@ $ pigeon -face gs://bucket_name/lenna.jpg
 
 ## Example
 
+![pigeon-cmd](https://raw.githubusercontent.com/kaneshin/pigeon/master/assets/pigeon-cmd.gif)
 
 
 ## License
