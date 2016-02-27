@@ -7,15 +7,16 @@ import (
 	"os"
 
 	"github.com/kaneshin/pigeon"
-	"github.com/kaneshin/pigeon/harness"
+	"github.com/kaneshin/pigeon/tools/cmd"
 )
 
 func main() {
 	// Parse arguments to run this function.
-	harness.FlagParse()
+	detects := cmd.DetectionsParse(os.Args[1:])
 
-	if args := harness.FlagArgs(); len(args) == 0 {
-		fmt.Fprintf(os.Stderr, "pigeon [options] <source>\n")
+	if args := detects.Args(); len(args) == 0 {
+		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+		detects.Usage()
 		os.Exit(1)
 	}
 
@@ -26,7 +27,7 @@ func main() {
 	}
 
 	// To call multiple image annotation requests.
-	batch, err := pigeon.NewBatchAnnotateImageRequest(harness.FlagArgs(), harness.Features()...)
+	batch, err := pigeon.NewBatchAnnotateImageRequest(detects.Args(), detects.Features()...)
 	if err != nil {
 		log.Fatalf("Unable to retrieve image request: %v\n", err)
 	}
