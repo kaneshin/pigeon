@@ -4,6 +4,7 @@
 
 ## Badges
 
+[![GoDoc](https://godoc.org/github.com/kaneshin/pigeon?status.svg)](https://godoc.org/github.com/kaneshin/pigeon)
 [![wercker status](https://app.wercker.com/status/265bd30a85f806655926be3ded5eff13/s "wercker status")](https://app.wercker.com/project/bykey/265bd30a85f806655926be3ded5eff13)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
 [![Code Climate](https://codeclimate.com/github/kaneshin/pigeon/badges/gpa.svg)](https://codeclimate.com/github/kaneshin/pigeon)
