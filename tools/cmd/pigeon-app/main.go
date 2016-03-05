@@ -12,7 +12,6 @@ import (
 	vision "google.golang.org/api/vision/v1"
 
 	"github.com/kaneshin/pigeon"
-	"github.com/kaneshin/pigeon/credentials"
 	"github.com/kaneshin/pigeon/tools/cmd"
 )
 
@@ -24,8 +23,7 @@ func main() {
 	detects := cmd.DetectionsParse(flag.Args()[:])
 
 	// Initialize vision service by a credentials json.
-	c := credentials.NewApplicationCredentials("")
-	client, err := pigeon.New(c)
+	client, err := pigeon.New(nil)
 	if err != nil {
 		panic(err)
 	}

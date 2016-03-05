@@ -7,7 +7,6 @@ import (
 	"os"
 
 	"github.com/kaneshin/pigeon"
-	"github.com/kaneshin/pigeon/credentials"
 	"github.com/kaneshin/pigeon/tools/cmd"
 )
 
@@ -22,14 +21,13 @@ func main() {
 	}
 
 	// Initialize vision service by a credentials json.
-	c := credentials.NewApplicationCredentials("")
-	client, err := pigeon.New(c)
+	client, err := pigeon.New(nil)
 	if err != nil {
 		log.Fatalf("Unable to retrieve vision service: %v\n", err)
 	}
 
 	// To call multiple image annotation requests.
-	batch, err := pigeon.NewBatchAnnotateImageRequest(detects.Args(), detects.Features()...)
+	batch, err := client.NewBatchAnnotateImageRequest(detects.Args(), detects.Features()...)
 	if err != nil {
 		log.Fatalf("Unable to retrieve image request: %v\n", err)
 	}

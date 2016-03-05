@@ -55,6 +55,7 @@ $ go get github.com/kaneshin/pigeon
 # Default Detection is LabelDetection.
 $ pigeon assets/lenna.jpg
 $ pigeon -face gs://bucket_name/lenna.jpg
+$ pigeon -label https://httpbin.org/image/jpeg
 ```
 
 ![pigeon-cmd](https://raw.githubusercontent.com/kaneshin/pigeon/master/assets/pigeon-cmd.gif)
@@ -87,14 +88,16 @@ func main() {
 	// "GOOGLE_APPLICATION_CREDENTIALS" if pass empty string to argument.
 	// creds := credentials.NewApplicationCredentials("")
 
-	client, err := pigeon.New(creds)
+	config := NewConfig().WithCredentials(creds)
+
+	client, err := pigeon.New(config)
 	if err != nil {
 		panic(err)
 	}
 
 	// To call multiple image annotation requests.
 	feature := pigeon.NewFeature(pigeon.LabelDetection)
-	batch, err := pigeon.NewBatchAnnotateImageRequest([]string{"lenna.jpg"}, feature)
+	batch, err := client.NewBatchAnnotateImageRequest([]string{"lenna.jpg"}, feature)
 	if err != nil {
 		panic(err)
 	}
@@ -191,7 +194,7 @@ if err != nil {
 
 ```go
 // To call multiple image annotation requests.
-batch, err := pigeon.NewBatchAnnotateImageRequest(list, features()...)
+batch, err := client.NewBatchAnnotateImageRequest(list, features()...)
 if err != nil {
 	panic(err)
 }
