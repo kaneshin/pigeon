@@ -55,6 +55,7 @@ $ go get github.com/kaneshin/pigeon
 # Default Detection is LabelDetection.
 $ pigeon assets/lenna.jpg
 $ pigeon -face gs://bucket_name/lenna.jpg
+$ pigeon -label https://httpbin.org/image/jpeg
 ```
 
 ![pigeon-cmd](https://raw.githubusercontent.com/kaneshin/pigeon/master/assets/pigeon-cmd.gif)
@@ -82,12 +83,12 @@ import "github.com/kaneshin/pigeon/credentials"
 func main() {
 	// Initialize vision service by a credentials json.
 	creds := credentials.NewApplicationCredentials("credentials.json")
-	config := NewConfig().WithCredentials(creds)
 
 	// creds will set a pointer of credentials object using env value of
 	// "GOOGLE_APPLICATION_CREDENTIALS" if pass empty string to argument.
 	// creds := credentials.NewApplicationCredentials("")
-	// config := NewConfig().WithCredentials(creds)
+
+	config := NewConfig().WithCredentials(creds)
 
 	client, err := pigeon.New(config)
 	if err != nil {
