@@ -82,19 +82,21 @@ import "github.com/kaneshin/pigeon/credentials"
 func main() {
 	// Initialize vision service by a credentials json.
 	creds := credentials.NewApplicationCredentials("credentials.json")
+	config := NewConfig().WithCredentials(creds)
 
 	// creds will set a pointer of credentials object using env value of
 	// "GOOGLE_APPLICATION_CREDENTIALS" if pass empty string to argument.
 	// creds := credentials.NewApplicationCredentials("")
+	// config := NewConfig().WithCredentials(creds)
 
-	client, err := pigeon.New(creds)
+	client, err := pigeon.New(config)
 	if err != nil {
 		panic(err)
 	}
 
 	// To call multiple image annotation requests.
 	feature := pigeon.NewFeature(pigeon.LabelDetection)
-	batch, err := pigeon.NewBatchAnnotateImageRequest([]string{"lenna.jpg"}, feature)
+	batch, err := client.NewBatchAnnotateImageRequest([]string{"lenna.jpg"}, feature)
 	if err != nil {
 		panic(err)
 	}
@@ -191,7 +193,7 @@ if err != nil {
 
 ```go
 // To call multiple image annotation requests.
-batch, err := pigeon.NewBatchAnnotateImageRequest(list, features()...)
+batch, err := client.NewBatchAnnotateImageRequest(list, features()...)
 if err != nil {
 	panic(err)
 }
