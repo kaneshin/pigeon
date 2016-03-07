@@ -9,8 +9,10 @@ import (
 func TestDetections(t *testing.T) {
 	assert := assert.New(t)
 
-	var args []string = []string{}
-	var detects *Detections = nil
+	var (
+		args    = []string{}
+		detects *Detections
+	)
 
 	detects = DetectionsParse(args)
 	assert.EqualValues(0, len(detects.Args()))
