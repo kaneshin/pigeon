@@ -36,6 +36,7 @@ func TestCredentialsGet(t *testing.T) {
 
 	assert := assert.New(t)
 	assert.NoError(err, "Expected no error")
+	assert.True(creds.IsValid())
 	assert.Equal("service_account", creds.Type)
 	assert.Equal("project-id", creds.ProjectID)
 	assert.Equal("some_number", creds.PrivateKeyID)
@@ -51,7 +52,8 @@ func TestCredentialsGet(t *testing.T) {
 func TestCredentialsGetWithError(t *testing.T) {
 	c := NewCredentials(&stubProvider{err: errors.New("provider error")})
 
-	_, err := c.Get()
+	v, err := c.Get()
 	assert := assert.New(t)
 	assert.Error(err)
+	assert.False(v.IsValid())
 }

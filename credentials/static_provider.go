@@ -35,12 +35,8 @@ func NewStaticCredentials(projectID, privateKeyID, privateKey, clientEmail, clie
 
 // Retrieve returns the credentials or error if the credentials are invalid.
 func (s *StaticProvider) Retrieve() (Value, error) {
-	if s.ProjectID == "" ||
-		s.PrivateKeyID == "" ||
-		s.PrivateKey == "" ||
-		s.ClientEmail == "" ||
-		s.ClientID == "" {
-		return Value{}, fmt.Errorf("static credentials are empty")
+	if s.IsValid() {
+		return s.Value, nil
 	}
-	return s.Value, nil
+	return Value{}, fmt.Errorf("static credentials are empty")
 }

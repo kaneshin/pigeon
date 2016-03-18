@@ -19,6 +19,15 @@ type Value struct {
 	ClientX509CertURL       string `json:"client_x509_cert_url"`
 }
 
+// IsValid ...
+func (v *Value) IsValid() bool {
+	return v.ProjectID != "" &&
+		v.PrivateKeyID != "" &&
+		v.PrivateKey != "" &&
+		v.ClientEmail != "" &&
+		v.ClientID != ""
+}
+
 // A Provider is the interface for any component which will provide credentials
 // Value.
 type Provider interface {

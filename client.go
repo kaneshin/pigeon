@@ -31,13 +31,23 @@ type (
 )
 
 // New returns a pointer to a new Client object.
-func New(c *Config) (*Client, error) {
+func New(c *Config, httpClient ...*http.Client) (*Client, error) {
 	if c == nil {
 		// Sets a configuration if passed nil value.
 		c = NewConfig()
 	}
 
-	// TODO: Running on GAE.
+	// Use HTTP Client if assigned
+	if len(httpClient) > 0 {
+		srv, err := vision.New(httpClient[0])
+		if err != nil {
+			return nil, fmt.Errorf("Unable to retrieve vision Client %v", err)
+		}
+		return &Client{
+			config:  c,
+			service: srv,
+		}, nil
+	}
 
 	if c.Credentials == nil {
 		// Sets application credentials by defaults.
