@@ -88,7 +88,7 @@ func main() {
 	// "GOOGLE_APPLICATION_CREDENTIALS" if pass empty string to argument.
 	// creds := credentials.NewApplicationCredentials("")
 
-	config := NewConfig().WithCredentials(creds)
+	config := pigeon.NewConfig().WithCredentials(creds)
 
 	client, err := pigeon.New(config)
 	if err != nil {
