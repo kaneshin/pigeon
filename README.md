@@ -18,6 +18,7 @@ You need to export a service account json file to `GOOGLE_APPLICATION_CREDENTIAL
 $ export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service_account.json
 ```
 
+To generate the credentials file, please, refer to [this documentation page](https://cloud.google.com/vision/docs/common/auth#authenticating_with_application_default_credentials)
 
 ## Installation
 
