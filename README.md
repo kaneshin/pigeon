@@ -18,6 +18,7 @@ You need to export a service account json file to `GOOGLE_APPLICATION_CREDENTIAL
 $ export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service_account.json
 ```
 
+To generate the credentials file, please, refer to [this documentation page](https://cloud.google.com/vision/docs/common/auth#authenticating_with_application_default_credentials)
 
 ## Installation
 
@@ -88,7 +89,7 @@ func main() {
 	// "GOOGLE_APPLICATION_CREDENTIALS" if pass empty string to argument.
 	// creds := credentials.NewApplicationCredentials("")
 
-	config := NewConfig().WithCredentials(creds)
+	config := pigeon.NewConfig().WithCredentials(creds)
 
 	client, err := pigeon.New(config)
 	if err != nil {
