@@ -133,7 +133,7 @@ func (c Client) NewAnnotateImageRequest(v interface{}, features ...*vision.Featu
 			return c.NewAnnotateImageRequest(body, features...)
 		}
 		// filepath
-		b, err := ioutil.ReadFile(u.String())
+		b, err := ioutil.ReadFile(v.(string))
 		if err != nil {
 			return nil, err
 		}
