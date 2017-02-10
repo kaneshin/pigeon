@@ -14,11 +14,15 @@ HAVE_GOCOV:=$(shell which gocov)
 init:
 
 build:
+	@go build -v -o /tmp/pigeon github.com/kaneshin/pigeon/cmd/pigeon
 
 install:
+	@go install -v github.com/kaneshin/pigeon/cmd/pigeon
 
 unit: lint vet cyclo build test
 unit-report: lint vet cyclo build test-report
+
+.PHONY: lint vet cyclo test coverage test-report
 
 lint: golint
 	@echo "go lint"
@@ -50,6 +54,8 @@ test-report:
 	@for d in $(TARGET_ONLY_PKGS); do \
 		go test -coverprofile=profile.out -covermode=atomic $$d || exit 1; \
 		[ -f profile.out ] && cat profile.out >> coverage.txt && rm profile.out || true; done
+
+.PHONY: golint gocyclo gocov
 
 golint:
 ifndef HAVE_GOLINT
