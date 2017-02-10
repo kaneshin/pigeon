@@ -12,7 +12,7 @@ import (
 	vision "google.golang.org/api/vision/v1"
 
 	"github.com/kaneshin/pigeon"
-	"github.com/kaneshin/pigeon/tools/cmd"
+	"github.com/kaneshin/pigeon/cmd"
 )
 
 func main() {

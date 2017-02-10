@@ -1,6 +1,7 @@
 # Pigeon App
 
-The `pigeon` command submits images to Google Cloud Vision API.
+Command `pigeon-app` is the beginning of the pigeon server, serving the image files to submit to the Google Cloud Vision API and return to client.
+
 
 ## Prerequisite
 
@@ -16,26 +17,25 @@ $ export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service_account.json
 Type the following line to install `pigeon`.
 
 ```shell
-$ go get github.com/kaneshin/pigeon/tools/cmd/pigeon
+$ go get github.com/kaneshin/pigeon/cmd/pigeon-app
 ```
 
 Make sure that `pigeon` was installed correctly:
 
 ```shell
-$ pigeon -h
+$ pigeon-app -h
 ```
 
 
 ## Run
 
 ```
-$ pigeon assets/lenna.jpg
-$ pigeon -face gs://bucket_name/lenna.jpg
+$ pigeon-app -port=8080 -- -face -label -safe-search
 ```
 
 ## Example
 
-![pigeon-cmd](https://raw.githubusercontent.com/kaneshin/pigeon/master/assets/pigeon-cmd.gif)
+![pigeon-app](https://raw.githubusercontent.com/kaneshin/pigeon/master/assets/pigeon-app.gif)
 
 
 ## License

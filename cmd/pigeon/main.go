@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/kaneshin/pigeon"
-	"github.com/kaneshin/pigeon/tools/cmd"
+	"github.com/kaneshin/pigeon/cmd"
 )
 
 func main() {
