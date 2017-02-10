@@ -1,0 +1,9 @@
+language: go
+go:
+  - tip
+before_install:
+  - make init
+script:
+  - make unit-report
+after_success:
+  - bash <(curl -s https://codecov.io/bash)
