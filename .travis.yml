@@ -4,6 +4,7 @@ go:
 before_install:
   - make init
 script:
+  - make build
   - make unit-report
 after_success:
   - bash <(curl -s https://codecov.io/bash)
