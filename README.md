@@ -5,9 +5,10 @@
 ## Badges
 
 [![GoDoc](https://godoc.org/github.com/kaneshin/pigeon?status.svg)](https://godoc.org/github.com/kaneshin/pigeon)
+[![Build Status](https://travis-ci.org/kaneshin/pigeon.svg?branch=master)](https://travis-ci.org/kaneshin/pigeon)
+[![codecov](https://codecov.io/gh/kaneshin/pigeon/branch/master/graph/badge.svg)](https://codecov.io/gh/kaneshin/pigeon)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
 [![Code Climate](https://codeclimate.com/github/kaneshin/pigeon/badges/gpa.svg)](https://codeclimate.com/github/kaneshin/pigeon)
-
 
 ## Prerequisite
 
@@ -26,7 +27,7 @@ To generate the credentials file, please, refer to [this documentation page](htt
 `pigeon` provides the command-line tools.
 
 ```shell
-$ go get github.com/kaneshin/pigeon/tools/cmd/...
+$ go get github.com/kaneshin/pigeon/cmd/...
 ```
 
 Make sure that `pigeon` was installed correctly:
