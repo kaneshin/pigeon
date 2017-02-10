@@ -16,7 +16,6 @@ type StaticProvider struct {
 func NewStaticCredentials(projectID, privateKeyID, privateKey, clientEmail, clientID string) *Credentials {
 	_, err := url.ParseQuery(clientEmail)
 	if err != nil {
-		panic("ggggggggggggggggggggggggggggggggggg")
 		return nil
 	}
 	return NewCredentials(&StaticProvider{Value: Value{
