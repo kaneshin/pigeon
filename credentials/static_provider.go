@@ -14,8 +14,9 @@ type StaticProvider struct {
 // NewStaticCredentials returns a pointer to a new Credentials object
 // wrapping a static credentials value provider.
 func NewStaticCredentials(projectID, privateKeyID, privateKey, clientEmail, clientID string) *Credentials {
-	u, err := url.ParseQuery(clientEmail)
+	_, err := url.ParseQuery(clientEmail)
 	if err != nil {
+		panic("ggggggggggggggggggggggggggggggggggg")
 		return nil
 	}
 	return NewCredentials(&StaticProvider{Value: Value{
@@ -28,7 +29,7 @@ func NewStaticCredentials(projectID, privateKeyID, privateKey, clientEmail, clie
 		AuthURI:                 "https://accounts.google.com/o/oauth2/auth",
 		TokenURI:                "https://accounts.google.com/o/oauth2/token",
 		AuthProviderX509CertURL: "https://www.googleapis.com/oauth2/v1/certs",
-		ClientX509CertURL:       fmt.Sprintf("https://www.googleapis.com/robot/v1/metadata/x509/%s", u.Encode()),
+		ClientX509CertURL:       fmt.Sprintf("https://www.googleapis.com/robot/v1/metadata/x509/%s", url.QueryEscape(clientEmail)),
 	}})
 
 }

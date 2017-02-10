@@ -3,7 +3,6 @@ package credentials
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 )
 
@@ -39,12 +38,14 @@ func (p *ApplicationCredentialsProvider) Retrieve() (Value, error) {
 		return Value{}, err
 	}
 
-	b, err := ioutil.ReadFile(filename)
+	f, err := os.Open(filename)
 	if err != nil {
 		return Value{}, err
 	}
+	defer f.Close()
+
 	creds := Value{}
-	if err := json.Unmarshal(b, &creds); err != nil {
+	if err := json.NewDecoder(f).Decode(&creds); err != nil {
 		return Value{}, err
 	}
 
