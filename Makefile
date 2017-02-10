@@ -1,49 +1,70 @@
+GOVERSION=$(shell go version)
+GOOS=$(word 1,$(subst /, ,$(lastword $(GOVERSION))))
+GOARCH=$(word 2,$(subst /, ,$(lastword $(GOVERSION))))
 LINTIGNOREDEPS='vendor/.+\.go'
+VETIGNOREDEPS='vendor/.+\.go'
+CYCLOIGNOREDEPS='vendor/.+\.go'
+TARGET_ONLY_PKGS=$(shell go list ./... 2> /dev/null | grep -v "/vendor/")
+HAVE_GOLINT:=$(shell which golint)
+HAVE_GOCYCLO:=$(shell which gocyclo)
+HAVE_GOCOV:=$(shell which gocov)
 
-PIGEON_ONLY_PKGS=$(shell go list ./... 2> /dev/null | grep -v "/vendor/")
+.PHONY: init build install unit unit-report
 
-all: help
-
-help:
-	@echo "Please use \`make <target>' where <target> is one of"
-	@echo "  build                   to go build the pigeon"
-	@echo "  unit                    to run unit tests"
-	@echo "  verify                  to verify tests"
-	@echo "  lint                    to lint the pigeon"
-	@echo "  vet                     to vet the pigeon"
+init:
 
 build:
-	@echo "go build pigeon and vendor packages"
 
-unit: verify test
+install:
 
-test:
-	@go test $(PIGEON_ONLY_PKGS)
+unit: lint vet cyclo build test
+unit-report: lint vet cyclo build test-report
 
-verify: lint vet
-
-lint:
-	@echo "go lint packages"
+lint: golint
+	@echo "go lint"
 	@lint=`golint ./...`; \
-	lint=`echo "$$lint" | grep -E -v -e ${LINTIGNOREDEPS}`; \
-	echo "$$lint"; \
-	if [ "$$lint" != "" ]; then exit 1; fi
+		lint=`echo "$$lint" | grep -E -v -e ${LINTIGNOREDEPS}`; \
+		echo "$$lint"; if [ "$$lint" != "" ]; then exit 1; fi
 
 vet:
-	@echo "go vet packages"
-	@go tool vet -all -structtags -shadow $(shell ls -d */ | grep -v "vendor")
+	@echo "go vet"
+	@vet=`go tool vet -all -structtags -shadow $(shell ls -d */ | grep -v "vendor") 2>&1`; \
+		vet=`echo "$$vet" | grep -E -v -e ${VETIGNOREDEPS}`; \
+		echo "$$vet"; if [ "$$vet" != "" ]; then exit 1; fi
 
-vendor:
-	glide install
+cyclo: gocyclo
+	@echo "gocyclo -over 20"
+	@cyclo=`gocyclo -over 20 . 2>&1`; \
+		cyclo=`echo "$$cyclo" | grep -E -v -e ${CYCLOIGNOREDEPS}`; \
+		echo "$$cyclo"; if [ "$$cyclo" != "" ]; then exit 1; fi
 
-install: install-pigeon install-pigeon-app
-install-pigeon:
-	@go install github.com/kaneshin/pigeon/tools/cmd/pigeon
-install-pigeon-app:
-	@go install github.com/kaneshin/pigeon/tools/cmd/pigeon-app
+test:
+	@go test $(TARGET_ONLY_PKGS)
 
-run-pigeon: install-pigeon
-	@lime -bin=/tmp/pigeon-bin -ignore-pattern=\(\\.git\|vendor\) -build-pattern=.* ./tools/cmd/pigeon
-run-pigeon-app: install-pigeon-app
-	@lime -i -bin=/tmp/pigeon-bin -ignore-pattern=\(\\.git\|vendor\) ./tools/cmd/pigeon-app -port=8080 -- -label
+coverage: gocov
+	@gocov test $(TARGET_ONLY_PKGS) | gocov report
 
+test-report:
+	@echo "Invoking test and coverage"
+	@echo "" > coverage.txt
+	@for d in $(TARGET_ONLY_PKGS); do \
+		go test -coverprofile=profile.out -covermode=atomic $$d || exit 1; \
+		[ -f profile.out ] && cat profile.out >> coverage.txt && rm profile.out || true; done
+
+golint:
+ifndef HAVE_GOLINT
+	@echo "Installing linter"
+	@go get -u github.com/golang/lint/golint
+endif
+
+gocyclo:
+ifndef HAVE_GOCYCLO
+	@echo "Installing gocyclo"
+	@go get -u github.com/fzipp/gocyclo
+endif
+
+gocov:
+ifndef HAVE_GOCOV
+	@echo "Installing gocov"
+	@go get -u github.com/axw/gocov/gocov
+endif
