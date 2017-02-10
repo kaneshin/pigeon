@@ -1,5 +1,5 @@
 {
-    "memo": "2cbcb138b1c285545baf4d7fb103a6167f969fce107333712a5ea8036e7e669e",
+    "memo": "6b34df66dd5f758d963817036ff3ce42f9ce2f3aa7a0361be4615d112e3389dd",
     "projects": [
         {
             "name": "cloud.google.com/go",
@@ -18,14 +18,6 @@
             ]
         },
         {
-            "name": "github.com/gin-gonic/gin",
-            "version": "v1.1.4",
-            "revision": "e2212d40c62a98b388a5eb48ecbdcf88534688ba",
-            "packages": [
-                "."
-            ]
-        },
-        {
             "name": "github.com/golang/protobuf",
             "branch": "master",
             "revision": "8ee79997227bf9b34611aee7946ae64735e6fd93",
@@ -37,38 +29,6 @@
             "name": "github.com/googleapis/gax-go",
             "branch": "master",
             "revision": "da06d194a00e19ce00d9011a13931c3f6f6887c7",
-            "packages": [
-                "."
-            ]
-        },
-        {
-            "name": "github.com/manucorporat/sse",
-            "branch": "master",
-            "revision": "ee05b128a739a0fb76c7ebd3ae4810c1de808d6d",
-            "packages": [
-                "."
-            ]
-        },
-        {
-            "name": "github.com/mattn/go-isatty",
-            "version": "v0.0.1",
-            "revision": "3a115632dcd687f9c8cd01679c83a06a0e21c1f3",
-            "packages": [
-                "."
-            ]
-        },
-        {
-            "name": "github.com/nfnt/resize",
-            "branch": "master",
-            "revision": "891127d8d1b52734debe1b3c3d7e747502b6c366",
-            "packages": [
-                "."
-            ]
-        },
-        {
-            "name": "github.com/olahol/go-imageupload",
-            "branch": "master",
-            "revision": "09d2b92fa05eff7d0c06d77a7803c74a824b0eb1",
             "packages": [
                 "."
             ]
@@ -110,14 +70,6 @@
             ]
         },
         {
-            "name": "golang.org/x/sys",
-            "branch": "master",
-            "revision": "7a6e5648d140666db5d920909e082ca00a87ba2c",
-            "packages": [
-                "unix"
-            ]
-        },
-        {
             "name": "google.golang.org/api",
             "branch": "master",
             "revision": "dfa61ae24628a06502b9c2805d983b57e89399b5",
@@ -141,22 +93,6 @@
             "packages": [
                 ".",
                 "codes"
-            ]
-        },
-        {
-            "name": "gopkg.in/go-playground/validator.v8",
-            "version": "v8.18.1",
-            "revision": "5f57d2222ad794d0dffb07e664ea05e2ee07d60c",
-            "packages": [
-                "."
-            ]
-        },
-        {
-            "name": "gopkg.in/yaml.v2",
-            "branch": "v2",
-            "revision": "a3f3340b5840cee44f372bddb5880fcbc419b46a",
-            "packages": [
-                "."
             ]
         }
     ]
