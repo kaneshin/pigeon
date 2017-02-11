@@ -1,14 +1,12 @@
 # Pigeon - Google Cloud Vision API on Golang
 
-`pigeon` is a service for the Google Cloud Vision API on Golang.
-
-## Badges
-
 [![GoDoc](https://godoc.org/github.com/kaneshin/pigeon?status.svg)](https://godoc.org/github.com/kaneshin/pigeon)
 [![Build Status](https://travis-ci.org/kaneshin/pigeon.svg?branch=master)](https://travis-ci.org/kaneshin/pigeon)
 [![codecov](https://codecov.io/gh/kaneshin/pigeon/branch/master/graph/badge.svg)](https://codecov.io/gh/kaneshin/pigeon)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
 [![Code Climate](https://codeclimate.com/github/kaneshin/pigeon/badges/gpa.svg)](https://codeclimate.com/github/kaneshin/pigeon)
+
+`pigeon` is a service for the Google Cloud Vision API on Golang.
 
 ## Prerequisite
 
@@ -22,7 +20,7 @@ To generate the credentials file, please, refer to [this documentation page](htt
 
 ## Installation
 
-### `pigeon` and `pigeon-app` commands
+### `pigeon`
 
 `pigeon` provides the command-line tools.
 
@@ -34,7 +32,6 @@ Make sure that `pigeon` was installed correctly:
 
 ```shell
 $ pigeon -h
-$ pigeon-app -h
 ```
 
 ### `pigeon` package
@@ -42,9 +39,8 @@ $ pigeon-app -h
 Type the following line to install `pigeon` package.
 
 ```shell
-$ go get github.com/kaneshin/pigeon
+$ go get -u github.com/kaneshin/pigeon
 ```
-
 
 ## Usage
 
@@ -60,20 +56,6 @@ $ pigeon -label https://httpbin.org/image/jpeg
 ```
 
 ![pigeon-cmd](https://raw.githubusercontent.com/kaneshin/pigeon/master/assets/pigeon-cmd.gif)
-
-
-### `pigeon-app` command
-
-```shell
-# Default port is 8080.
-# Default Detection is LabelDetection.
-$ pigeon-app
-$ pigeon-app -port=8000 -- -face -label -safe-search
-$ curl -XGET localhost:8080/
-```
-
-![pigeon-app](https://raw.githubusercontent.com/kaneshin/pigeon/master/assets/pigeon-app.gif)
-
 
 ### `pigeon` package
 
@@ -271,7 +253,6 @@ $ pigeon -safe-search assets/lenna.jpg
 ## License
 
 [The MIT License (MIT)](http://kaneshin.mit-license.org/)
-
 
 ## Author
 
