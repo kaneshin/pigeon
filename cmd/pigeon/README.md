@@ -1,4 +1,4 @@
-# Pigeon App
+# Pigeon
 
 The `pigeon` command submits images to Google Cloud Vision API.
 
@@ -46,4 +46,3 @@ $ pigeon -face gs://bucket_name/lenna.jpg
 ## Author
 
 Shintaro Kaneko <kaneshin0120@gmail.com>
-
