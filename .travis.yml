@@ -8,3 +8,6 @@ script:
   - make unit-report
 after_success:
   - bash <(curl -s https://codecov.io/bash)
+addons:
+  code_climate:
+    repo_token: 4ba7d3097394c4e92b5402712b56d08daae797861bfe37edc6db378c37c64376
