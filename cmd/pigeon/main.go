@@ -7,12 +7,11 @@ import (
 	"os"
 
 	"github.com/kaneshin/pigeon"
-	"github.com/kaneshin/pigeon/cmd"
 )
 
 func main() {
 	// Parse arguments to run this function.
-	detects := cmd.DetectionsParse(os.Args[1:])
+	detects := DetectionsParse(os.Args[1:])
 
 	if args := detects.Args(); len(args) == 0 {
 		fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
