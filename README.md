@@ -4,7 +4,6 @@
 [![Build Status](https://travis-ci.org/kaneshin/pigeon.svg?branch=master)](https://travis-ci.org/kaneshin/pigeon)
 [![codecov](https://codecov.io/gh/kaneshin/pigeon/branch/master/graph/badge.svg)](https://codecov.io/gh/kaneshin/pigeon)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
-[![Code Climate](https://codeclimate.com/github/kaneshin/pigeon/badges/gpa.svg)](https://codeclimate.com/github/kaneshin/pigeon)
 
 `pigeon` is a service for the Google Cloud Vision API on Golang.
 
