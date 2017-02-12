@@ -19,8 +19,6 @@ To generate the credentials file, please, refer to [this documentation page](htt
 
 ## Installation
 
-### `pigeon`
-
 `pigeon` provides the command-line tools.
 
 ```shell
@@ -31,14 +29,6 @@ Make sure that `pigeon` was installed correctly:
 
 ```shell
 $ pigeon -h
-```
-
-### `pigeon` package
-
-Type the following line to install `pigeon` package.
-
-```shell
-$ go get -u github.com/kaneshin/pigeon
 ```
 
 ## Usage
