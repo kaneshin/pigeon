@@ -11,15 +11,27 @@ import (
 func TestConfig(t *testing.T) {
 	assert := assert.New(t)
 
-	conf := NewConfig()
-	assert.NotNil(conf)
-	assert.Nil(conf.Credentials)
-	assert.Nil(conf.HTTPClient)
+	cfg := NewConfig()
+	assert.NotNil(cfg)
+	assert.Nil(cfg.Credentials)
+	assert.Nil(cfg.HTTPClient)
 
 	creds := credentials.NewApplicationCredentials("")
 	client := http.DefaultClient
-	conf.WithCredentials(creds).
+	cfg.WithCredentials(creds).
 		WithHTTPClient(client)
-	assert.NotNil(conf.Credentials)
-	assert.NotNil(conf.HTTPClient)
+	assert.NotNil(cfg.Credentials)
+	assert.NotNil(cfg.HTTPClient)
+}
+
+func Benchmark_Config(b *testing.B) {
+	var c Config
+
+	b.Run("NewConfig", func(b *testing.B) {
+		b.ReportAllocs()
+		b.ResetTimer()
+		for n := 0; n < b.N; n++ {
+			c = NewConfig()
+		}
+	})
 }
