@@ -35,30 +35,19 @@ import (
 	"time"
 
 	"cloud.google.com/go/bigtable"
-	"cloud.google.com/go/bigtable/internal/cbtconfig"
+	"cloud.google.com/go/bigtable/internal/cbtrc"
 	"golang.org/x/net/context"
 	"google.golang.org/api/option"
-	"google.golang.org/grpc"
 )
 
 var (
 	oFlag = flag.String("o", "", "if set, redirect stdout to this file")
 
-	config              *cbtconfig.Config
+	config              *cbtrc.Config
 	client              *bigtable.Client
 	adminClient         *bigtable.AdminClient
 	instanceAdminClient *bigtable.InstanceAdminClient
 )
-
-func getCredentialOpts(opts []option.ClientOption) []option.ClientOption {
-	if ts := config.TokenSource; ts != nil {
-		opts = append(opts, option.WithTokenSource(ts))
-	}
-	if tlsCreds := config.TLSCreds; tlsCreds != nil {
-		opts = append(opts, option.WithGRPCDialOption(grpc.WithTransportCredentials(tlsCreds)))
-	}
-	return opts
-}
 
 func getClient() *bigtable.Client {
 	if client == nil {
@@ -66,7 +55,6 @@ func getClient() *bigtable.Client {
 		if ep := config.DataEndpoint; ep != "" {
 			opts = append(opts, option.WithEndpoint(ep))
 		}
-		opts = getCredentialOpts(opts)
 		var err error
 		client, err = bigtable.NewClient(context.Background(), config.Project, config.Instance, opts...)
 		if err != nil {
@@ -82,7 +70,6 @@ func getAdminClient() *bigtable.AdminClient {
 		if ep := config.AdminEndpoint; ep != "" {
 			opts = append(opts, option.WithEndpoint(ep))
 		}
-		opts = getCredentialOpts(opts)
 		var err error
 		adminClient, err = bigtable.NewAdminClient(context.Background(), config.Project, config.Instance, opts...)
 		if err != nil {
@@ -98,7 +85,6 @@ func getInstanceAdminClient() *bigtable.InstanceAdminClient {
 		if ep := config.AdminEndpoint; ep != "" {
 			opts = append(opts, option.WithEndpoint(ep))
 		}
-		opts = getCredentialOpts(opts)
 		var err error
 		instanceAdminClient, err = bigtable.NewInstanceAdminClient(context.Background(), config.Project, opts...)
 		if err != nil {
@@ -110,7 +96,7 @@ func getInstanceAdminClient() *bigtable.InstanceAdminClient {
 
 func main() {
 	var err error
-	config, err = cbtconfig.Load()
+	config, err = cbtrc.Load()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -118,6 +104,9 @@ func main() {
 
 	flag.Usage = func() { usage(os.Stderr) }
 	flag.Parse()
+	if config.Creds != "" {
+		os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", config.Creds)
+	}
 	if flag.NArg() == 0 {
 		usage(os.Stderr)
 		os.Exit(1)
@@ -172,7 +161,7 @@ func init() {
 var configHelp = `
 For convenience, values of the -project, -instance, -creds,
 -admin-endpoint and -data-endpoint flags may be specified in
-` + cbtconfig.Filename() + ` in this format:
+` + cbtrc.Filename() + ` in this format:
 	project = my-project-123
 	instance = my-instance
 	creds = path-to-account-key.json
@@ -185,77 +174,77 @@ var commands = []struct {
 	Name, Desc string
 	do         func(context.Context, ...string)
 	Usage      string
-	Required   cbtconfig.RequiredFlags
+	Required   cbtrc.RequiredFlags
 }{
 	{
 		Name:     "count",
 		Desc:     "Count rows in a table",
 		do:       doCount,
 		Usage:    "cbt count <table>",
-		Required: cbtconfig.ProjectAndInstanceRequired,
+		Required: cbtrc.ProjectAndInstanceRequired,
 	},
 	{
 		Name:     "createfamily",
 		Desc:     "Create a column family",
 		do:       doCreateFamily,
 		Usage:    "cbt createfamily <table> <family>",
-		Required: cbtconfig.ProjectAndInstanceRequired,
+		Required: cbtrc.ProjectAndInstanceRequired,
 	},
 	{
 		Name:     "createtable",
 		Desc:     "Create a table",
 		do:       doCreateTable,
 		Usage:    "cbt createtable <table>",
-		Required: cbtconfig.ProjectAndInstanceRequired,
+		Required: cbtrc.ProjectAndInstanceRequired,
 	},
 	{
 		Name:     "deletefamily",
 		Desc:     "Delete a column family",
 		do:       doDeleteFamily,
 		Usage:    "cbt deletefamily <table> <family>",
-		Required: cbtconfig.ProjectAndInstanceRequired,
+		Required: cbtrc.ProjectAndInstanceRequired,
 	},
 	{
 		Name:     "deleterow",
 		Desc:     "Delete a row",
 		do:       doDeleteRow,
 		Usage:    "cbt deleterow <table> <row>",
-		Required: cbtconfig.ProjectAndInstanceRequired,
+		Required: cbtrc.ProjectAndInstanceRequired,
 	},
 	{
 		Name:     "deletetable",
 		Desc:     "Delete a table",
 		do:       doDeleteTable,
 		Usage:    "cbt deletetable <table>",
-		Required: cbtconfig.ProjectAndInstanceRequired,
+		Required: cbtrc.ProjectAndInstanceRequired,
 	},
 	{
 		Name:     "doc",
 		Desc:     "Print godoc-suitable documentation for cbt",
 		do:       doDoc,
 		Usage:    "cbt doc",
-		Required: cbtconfig.NoneRequired,
+		Required: cbtrc.NoneRequired,
 	},
 	{
 		Name:     "help",
 		Desc:     "Print help text",
 		do:       doHelp,
 		Usage:    "cbt help [command]",
-		Required: cbtconfig.NoneRequired,
+		Required: cbtrc.NoneRequired,
 	},
 	{
 		Name:     "listinstances",
 		Desc:     "List instances in a project",
 		do:       doListInstances,
 		Usage:    "cbt listinstances",
-		Required: cbtconfig.ProjectRequired,
+		Required: cbtrc.ProjectRequired,
 	},
 	{
 		Name:     "lookup",
 		Desc:     "Read from a single row",
 		do:       doLookup,
 		Usage:    "cbt lookup <table> <row>",
-		Required: cbtconfig.ProjectAndInstanceRequired,
+		Required: cbtrc.ProjectAndInstanceRequired,
 	},
 	{
 		Name: "ls",
@@ -263,14 +252,14 @@ var commands = []struct {
 		do:   doLS,
 		Usage: "cbt ls			List tables\n" +
 			"cbt ls <table>		List column families in <table>",
-		Required: cbtconfig.ProjectAndInstanceRequired,
+		Required: cbtrc.ProjectAndInstanceRequired,
 	},
 	{
 		Name:     "mddoc",
 		Desc:     "Print documentation for cbt in Markdown format",
 		do:       doMDDoc,
 		Usage:    "cbt mddoc",
-		Required: cbtconfig.NoneRequired,
+		Required: cbtrc.NoneRequired,
 	},
 	{
 		Name: "read",
@@ -281,7 +270,7 @@ var commands = []struct {
 			"  end=<row>		Stop reading before this row\n" +
 			"  prefix=<prefix>	Read rows with this prefix\n" +
 			"  count=<n>		Read only this many rows\n",
-		Required: cbtconfig.ProjectAndInstanceRequired,
+		Required: cbtrc.ProjectAndInstanceRequired,
 	},
 	{
 		Name: "set",
@@ -293,7 +282,7 @@ var commands = []struct {
 			"  ts is an optional integer timestamp.\n" +
 			"  If it cannot be parsed, the `@ts` part will be\n" +
 			"  interpreted as part of the value.",
-		Required: cbtconfig.ProjectAndInstanceRequired,
+		Required: cbtrc.ProjectAndInstanceRequired,
 	},
 	{
 		Name: "setgcpolicy",
@@ -303,7 +292,7 @@ var commands = []struct {
 			"\n" +
 			`  maxage=<d>		Maximum timestamp age to preserve (e.g. "1h", "4d")` + "\n" +
 			"  maxversions=<n>	Maximum number of versions to preserve",
-		Required: cbtconfig.ProjectAndInstanceRequired,
+		Required: cbtrc.ProjectAndInstanceRequired,
 	},
 }
 

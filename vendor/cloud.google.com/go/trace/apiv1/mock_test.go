@@ -43,11 +43,6 @@ var _ = ptypes.MarshalAny
 var _ status.Status
 
 type mockTraceServer struct {
-	// Embed for forward compatibility.
-	// Tests will keep working if more methods are added
-	// in the future.
-	cloudtracepb.TraceServiceServer
-
 	reqs []proto.Message
 
 	// If set, all calls return this error.

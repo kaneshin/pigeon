@@ -47,8 +47,6 @@ func typeMismatchReason(p Property, v reflect.Value) string {
 		entityType = "float"
 	case *Key:
 		entityType = "*datastore.Key"
-	case *Entity:
-		entityType = "*datastore.Entity"
 	case GeoPoint:
 		entityType = "GeoPoint"
 	case time.Time:
@@ -190,7 +188,6 @@ func (l *propertyLoader) loadOneElement(codec fields.List, structValue reflect.V
 // setVal sets 'v' to the value of the Property 'p'.
 func setVal(v reflect.Value, p Property) string {
 	pValue := p.Value
-
 	switch v.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		x, ok := pValue.(int64)
@@ -223,36 +220,14 @@ func setVal(v reflect.Value, p Property) string {
 		}
 		v.SetFloat(x)
 	case reflect.Ptr:
-		// v must be either a pointer to a Key or Entity.
-		if v.Type() != typeOfKeyPtr && v.Type().Elem().Kind() != reflect.Struct {
+		x, ok := pValue.(*Key)
+		if !ok && pValue != nil {
 			return typeMismatchReason(p, v)
 		}
-
-		if pValue == nil {
-			// If v is populated already, set it to nil.
-			if !v.IsNil() {
-				v.Set(reflect.New(v.Type()).Elem())
-			}
-			return ""
-		}
-
-		switch pValue.(type) {
-		case *Key:
-			if _, ok := v.Interface().(*Key); !ok {
-				return typeMismatchReason(p, v)
-			}
-			v.Set(reflect.ValueOf(pValue.(*Key)))
-		case *Entity:
-			if v.Type().Elem().Kind() != reflect.Struct {
-				return typeMismatchReason(p, v)
-			}
-			if v.IsNil() {
-				v.Set(reflect.New(v.Type().Elem()))
-			}
-			return setVal(v.Elem(), p)
-		default:
+		if _, ok := v.Interface().(*Key); !ok {
 			return typeMismatchReason(p, v)
 		}
+		v.Set(reflect.ValueOf(x))
 	case reflect.Struct:
 		switch v.Type() {
 		case typeOfTime:
@@ -331,26 +306,7 @@ func loadEntity(dst interface{}, src *pb.Entity) (err error) {
 	if e, ok := dst.(PropertyLoadSaver); ok {
 		return e.Load(ent.Properties)
 	}
-	return loadEntityToStruct(dst, ent)
-}
-
-func loadEntityToStruct(dst interface{}, ent *Entity) error {
-	pls, err := newStructPLS(dst)
-	if err != nil {
-		return err
-	}
-	// Load properties.
-	err = pls.Load(ent.Properties)
-	if err != nil {
-		return err
-	}
-	// Load key.
-	keyField := pls.codec.Match(keyFieldName)
-	if keyField != nil && ent.Key != nil {
-		pls.v.FieldByIndex(keyField.Index).Set(reflect.ValueOf(ent.Key))
-	}
-
-	return nil
+	return LoadStruct(dst, ent.Properties)
 }
 
 func (s structPLS) Load(props []Property) error {

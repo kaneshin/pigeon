@@ -48,7 +48,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/stats"
 	"google.golang.org/grpc/tap"
 )
 
@@ -358,10 +357,9 @@ const (
 
 // ServerConfig consists of all the configurations to establish a server transport.
 type ServerConfig struct {
-	MaxStreams   uint32
-	AuthInfo     credentials.AuthInfo
-	InTapHandle  tap.ServerInHandle
-	StatsHandler stats.Handler
+	MaxStreams  uint32
+	AuthInfo    credentials.AuthInfo
+	InTapHandle tap.ServerInHandle
 }
 
 // NewServerTransport creates a ServerTransport with conn or non-nil error
@@ -382,8 +380,6 @@ type ConnectOptions struct {
 	PerRPCCredentials []credentials.PerRPCCredentials
 	// TransportCredentials stores the Authenticator required to setup a client connection.
 	TransportCredentials credentials.TransportCredentials
-	// StatsHandler stores the handler for stats.
-	StatsHandler stats.Handler
 }
 
 // TargetInfo contains the information of the target such as network address and metadata.

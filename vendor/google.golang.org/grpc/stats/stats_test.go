@@ -40,7 +40,6 @@ import (
 	"reflect"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/golang/protobuf/proto"
 	"golang.org/x/net/context"
@@ -54,8 +53,82 @@ func init() {
 	grpc.EnableTracing = false
 }
 
+func TestStartStop(t *testing.T) {
+	stats.RegisterRPCHandler(nil)
+	stats.RegisterConnHandler(nil)
+	stats.Start()
+	if stats.On() {
+		t.Fatalf("stats.Start() with nil handler, stats.On() = true, want false")
+	}
+
+	stats.RegisterRPCHandler(func(ctx context.Context, s stats.RPCStats) {})
+	stats.RegisterConnHandler(nil)
+	stats.Start()
+	if !stats.On() {
+		t.Fatalf("stats.Start() with non-nil handler, stats.On() = false, want true")
+	}
+	stats.Stop()
+
+	stats.RegisterRPCHandler(nil)
+	stats.RegisterConnHandler(func(ctx context.Context, s stats.ConnStats) {})
+	stats.Start()
+	if !stats.On() {
+		t.Fatalf("stats.Start() with non-nil conn handler, stats.On() = false, want true")
+	}
+	stats.Stop()
+
+	stats.RegisterRPCHandler(func(ctx context.Context, s stats.RPCStats) {})
+	stats.RegisterConnHandler(func(ctx context.Context, s stats.ConnStats) {})
+	if stats.On() {
+		t.Fatalf("after stats.RegisterRPCHandler(), stats.On() = true, want false")
+	}
+	stats.Start()
+	if !stats.On() {
+		t.Fatalf("after stats.Start(_), stats.On() = false, want true")
+	}
+
+	stats.Stop()
+	if stats.On() {
+		t.Fatalf("after stats.Stop(), stats.On() = true, want false")
+	}
+}
+
 type connCtxKey struct{}
 type rpcCtxKey struct{}
+
+func TestTagConnCtx(t *testing.T) {
+	defer stats.RegisterConnTagger(nil)
+	ctx1 := context.Background()
+	stats.RegisterConnTagger(nil)
+	ctx2 := stats.TagConn(ctx1, nil)
+	if ctx2 != ctx1 {
+		t.Fatalf("nil conn ctx tagger should not modify context, got %v; want %v", ctx2, ctx1)
+	}
+	stats.RegisterConnTagger(func(ctx context.Context, info *stats.ConnTagInfo) context.Context {
+		return context.WithValue(ctx, connCtxKey{}, "connctxvalue")
+	})
+	ctx3 := stats.TagConn(ctx1, nil)
+	if v, ok := ctx3.Value(connCtxKey{}).(string); !ok || v != "connctxvalue" {
+		t.Fatalf("got context %v; want %v", ctx3, context.WithValue(ctx1, connCtxKey{}, "connctxvalue"))
+	}
+}
+
+func TestTagRPCCtx(t *testing.T) {
+	defer stats.RegisterRPCTagger(nil)
+	ctx1 := context.Background()
+	stats.RegisterRPCTagger(nil)
+	ctx2 := stats.TagRPC(ctx1, nil)
+	if ctx2 != ctx1 {
+		t.Fatalf("nil rpc ctx tagger should not modify context, got %v; want %v", ctx2, ctx1)
+	}
+	stats.RegisterRPCTagger(func(ctx context.Context, info *stats.RPCTagInfo) context.Context {
+		return context.WithValue(ctx, rpcCtxKey{}, "rpcctxvalue")
+	})
+	ctx3 := stats.TagRPC(ctx1, nil)
+	if v, ok := ctx3.Value(rpcCtxKey{}).(string); !ok || v != "rpcctxvalue" {
+		t.Fatalf("got context %v; want %v", ctx3, context.WithValue(ctx1, rpcCtxKey{}, "rpcctxvalue"))
+	}
+}
 
 var (
 	// For headers:
@@ -124,10 +197,11 @@ func (s *testServer) FullDuplexCall(stream testpb.TestService_FullDuplexCallServ
 // func, modified as needed, and then started with its startServer method.
 // It should be cleaned up with the tearDown method.
 type test struct {
-	t                  *testing.T
-	compress           string
-	clientStatsHandler stats.Handler
-	serverStatsHandler stats.Handler
+	t        *testing.T
+	compress string
+
+	ctx    context.Context // valid for life of test, before tearDown
+	cancel context.CancelFunc
 
 	testServer testpb.TestServiceServer // nil means none
 	// srv and srvAddr are set once startServer is called.
@@ -138,6 +212,10 @@ type test struct {
 }
 
 func (te *test) tearDown() {
+	if te.cancel != nil {
+		te.cancel()
+		te.cancel = nil
+	}
 	if te.cc != nil {
 		te.cc.Close()
 		te.cc = nil
@@ -145,20 +223,12 @@ func (te *test) tearDown() {
 	te.srv.Stop()
 }
 
-type testConfig struct {
-	compress string
-}
-
 // newTest returns a new test using the provided testing.T and
 // environment.  It is returned with default values. Tests should
 // modify it before calling its startServer and clientConn methods.
-func newTest(t *testing.T, tc *testConfig, ch stats.Handler, sh stats.Handler) *test {
-	te := &test{
-		t:                  t,
-		compress:           tc.compress,
-		clientStatsHandler: ch,
-		serverStatsHandler: sh,
-	}
+func newTest(t *testing.T, compress string) *test {
+	te := &test{t: t, compress: compress}
+	te.ctx, te.cancel = context.WithCancel(context.Background())
 	return te
 }
 
@@ -176,9 +246,6 @@ func (te *test) startServer(ts testpb.TestServiceServer) {
 			grpc.RPCCompressor(grpc.NewGZIPCompressor()),
 			grpc.RPCDecompressor(grpc.NewGZIPDecompressor()),
 		)
-	}
-	if te.serverStatsHandler != nil {
-		opts = append(opts, grpc.StatsHandler(te.serverStatsHandler))
 	}
 	s := grpc.NewServer(opts...)
 	te.srv = s
@@ -199,15 +266,12 @@ func (te *test) clientConn() *grpc.ClientConn {
 	if te.cc != nil {
 		return te.cc
 	}
-	opts := []grpc.DialOption{grpc.WithInsecure(), grpc.WithBlock()}
+	opts := []grpc.DialOption{grpc.WithInsecure()}
 	if te.compress == "gzip" {
 		opts = append(opts,
 			grpc.WithCompressor(grpc.NewGZIPCompressor()),
 			grpc.WithDecompressor(grpc.NewGZIPDecompressor()),
 		)
-	}
-	if te.clientStatsHandler != nil {
-		opts = append(opts, grpc.WithStatsHandler(te.clientStatsHandler))
 	}
 
 	var err error
@@ -219,10 +283,9 @@ func (te *test) clientConn() *grpc.ClientConn {
 }
 
 type rpcConfig struct {
-	count     int  // Number of requests and responses for streaming RPCs.
-	success   bool // Whether the RPC should succeed or return error.
-	failfast  bool
-	streaming bool // Whether the rpc should be a streaming RPC.
+	count    int  // Number of requests and responses for streaming RPCs.
+	success  bool // Whether the RPC should succeed or return error.
+	failfast bool
 }
 
 func (te *test) doUnaryCall(c *rpcConfig) (*testpb.SimpleRequest, *testpb.SimpleResponse, error) {
@@ -272,14 +335,14 @@ func (te *test) doFullDuplexCallRoundtrip(c *rpcConfig) ([]*testpb.SimpleRequest
 		}
 		resps = append(resps, resp)
 	}
-	if err = stream.CloseSend(); err != nil && err != io.EOF {
+	if err = stream.CloseSend(); err != nil {
 		return reqs, resps, err
 	}
 	if _, err = stream.Recv(); err != io.EOF {
 		return reqs, resps, err
 	}
 
-	return reqs, resps, nil
+	return reqs, resps, err
 }
 
 type expectedData struct {
@@ -596,60 +659,34 @@ func checkConnEnd(t *testing.T, d *gotData, e *expectedData) {
 	st.IsClient() // TODO remove this.
 }
 
-type statshandler struct {
-	mu      sync.Mutex
-	gotRPC  []*gotData
-	gotConn []*gotData
-}
-
-func (h *statshandler) TagConn(ctx context.Context, info *stats.ConnTagInfo) context.Context {
+func tagConnCtx(ctx context.Context, info *stats.ConnTagInfo) context.Context {
 	return context.WithValue(ctx, connCtxKey{}, info)
 }
 
-func (h *statshandler) TagRPC(ctx context.Context, info *stats.RPCTagInfo) context.Context {
+func tagRPCCtx(ctx context.Context, info *stats.RPCTagInfo) context.Context {
 	return context.WithValue(ctx, rpcCtxKey{}, info)
-}
-
-func (h *statshandler) HandleConn(ctx context.Context, s stats.ConnStats) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.gotConn = append(h.gotConn, &gotData{ctx, s.IsClient(), s})
-}
-
-func (h *statshandler) HandleRPC(ctx context.Context, s stats.RPCStats) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.gotRPC = append(h.gotRPC, &gotData{ctx, s.IsClient(), s})
-}
-
-func checkConnStats(t *testing.T, got []*gotData) {
-	if len(got) <= 0 || len(got)%2 != 0 {
-		for i, g := range got {
-			t.Errorf(" - %v, %T = %+v, ctx: %v", i, g.s, g.s, g.ctx)
-		}
-		t.Fatalf("got %v stats, want even positive number", len(got))
-	}
-	// The first conn stats must be a ConnBegin.
-	checkConnBegin(t, got[0], nil)
-	// The last conn stats must be a ConnEnd.
-	checkConnEnd(t, got[len(got)-1], nil)
 }
 
 func checkServerStats(t *testing.T, got []*gotData, expect *expectedData, checkFuncs []func(t *testing.T, d *gotData, e *expectedData)) {
 	if len(got) != len(checkFuncs) {
-		for i, g := range got {
-			t.Errorf(" - %v, %T", i, g.s)
-		}
 		t.Fatalf("got %v stats, want %v stats", len(got), len(checkFuncs))
 	}
 
-	var rpcctx context.Context
+	var (
+		rpcctx  context.Context
+		connctx context.Context
+	)
 	for i := 0; i < len(got); i++ {
 		if _, ok := got[i].s.(stats.RPCStats); ok {
 			if rpcctx != nil && got[i].ctx != rpcctx {
 				t.Fatalf("got different contexts with stats %T", got[i].s)
 			}
 			rpcctx = got[i].ctx
+		} else {
+			if connctx != nil && got[i].ctx != connctx {
+				t.Fatalf("got different contexts with stats %T", got[i].s)
+			}
+			connctx = got[i].ctx
 		}
 	}
 
@@ -658,70 +695,49 @@ func checkServerStats(t *testing.T, got []*gotData, expect *expectedData, checkF
 	}
 }
 
-func testServerStats(t *testing.T, tc *testConfig, cc *rpcConfig, checkFuncs []func(t *testing.T, d *gotData, e *expectedData)) {
-	h := &statshandler{}
-	te := newTest(t, tc, nil, h)
+func TestServerStatsUnaryRPC(t *testing.T) {
+	var (
+		mu  sync.Mutex
+		got []*gotData
+	)
+	stats.RegisterRPCHandler(func(ctx context.Context, s stats.RPCStats) {
+		mu.Lock()
+		defer mu.Unlock()
+		if !s.IsClient() {
+			got = append(got, &gotData{ctx, false, s})
+		}
+	})
+	stats.RegisterConnHandler(func(ctx context.Context, s stats.ConnStats) {
+		mu.Lock()
+		defer mu.Unlock()
+		if !s.IsClient() {
+			got = append(got, &gotData{ctx, false, s})
+		}
+	})
+	stats.RegisterConnTagger(tagConnCtx)
+	stats.RegisterRPCTagger(tagRPCCtx)
+	stats.Start()
+	defer stats.Stop()
+
+	te := newTest(t, "")
 	te.startServer(&testServer{})
 	defer te.tearDown()
 
-	var (
-		reqs  []*testpb.SimpleRequest
-		resps []*testpb.SimpleResponse
-		err   error
-	)
-	if !cc.streaming {
-		req, resp, e := te.doUnaryCall(cc)
-		reqs = []*testpb.SimpleRequest{req}
-		resps = []*testpb.SimpleResponse{resp}
-		err = e
-	} else {
-		reqs, resps, err = te.doFullDuplexCallRoundtrip(cc)
+	req, resp, err := te.doUnaryCall(&rpcConfig{success: true})
+	if err != nil {
+		t.Fatalf(err.Error())
 	}
-	if cc.success != (err == nil) {
-		t.Fatalf("cc.success: %v, got error: %v", cc.success, err)
-	}
-	te.cc.Close()
 	te.srv.GracefulStop() // Wait for the server to stop.
 
-	for {
-		h.mu.Lock()
-		if len(h.gotRPC) >= len(checkFuncs) {
-			h.mu.Unlock()
-			break
-		}
-		h.mu.Unlock()
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	for {
-		h.mu.Lock()
-		if _, ok := h.gotConn[len(h.gotConn)-1].s.(*stats.ConnEnd); ok {
-			h.mu.Unlock()
-			break
-		}
-		h.mu.Unlock()
-		time.Sleep(10 * time.Millisecond)
-	}
-
 	expect := &expectedData{
-		serverAddr:  te.srvAddr,
-		compression: tc.compress,
-		requests:    reqs,
-		responses:   resps,
-		err:         err,
-	}
-	if !cc.streaming {
-		expect.method = "/grpc.testing.TestService/UnaryCall"
-	} else {
-		expect.method = "/grpc.testing.TestService/FullDuplexCall"
+		method:     "/grpc.testing.TestService/UnaryCall",
+		serverAddr: te.srvAddr,
+		requests:   []*testpb.SimpleRequest{req},
+		responses:  []*testpb.SimpleResponse{resp},
 	}
 
-	checkConnStats(t, h.gotConn)
-	checkServerStats(t, h.gotRPC, expect, checkFuncs)
-}
-
-func TestServerStatsUnaryRPC(t *testing.T) {
-	testServerStats(t, &testConfig{compress: ""}, &rpcConfig{success: true}, []func(t *testing.T, d *gotData, e *expectedData){
+	checkFuncs := []func(t *testing.T, d *gotData, e *expectedData){
+		checkConnBegin,
 		checkInHeader,
 		checkBegin,
 		checkInPayload,
@@ -729,23 +745,113 @@ func TestServerStatsUnaryRPC(t *testing.T) {
 		checkOutPayload,
 		checkOutTrailer,
 		checkEnd,
-	})
+		checkConnEnd,
+	}
+
+	checkServerStats(t, got, expect, checkFuncs)
 }
 
 func TestServerStatsUnaryRPCError(t *testing.T) {
-	testServerStats(t, &testConfig{compress: ""}, &rpcConfig{success: false}, []func(t *testing.T, d *gotData, e *expectedData){
+	var (
+		mu  sync.Mutex
+		got []*gotData
+	)
+	stats.RegisterRPCHandler(func(ctx context.Context, s stats.RPCStats) {
+		mu.Lock()
+		defer mu.Unlock()
+		if !s.IsClient() {
+			got = append(got, &gotData{ctx, false, s})
+		}
+	})
+	stats.RegisterConnHandler(func(ctx context.Context, s stats.ConnStats) {
+		mu.Lock()
+		defer mu.Unlock()
+		if !s.IsClient() {
+			got = append(got, &gotData{ctx, false, s})
+		}
+	})
+	stats.RegisterConnTagger(tagConnCtx)
+	stats.RegisterRPCTagger(tagRPCCtx)
+	stats.Start()
+	defer stats.Stop()
+
+	te := newTest(t, "")
+	te.startServer(&testServer{})
+	defer te.tearDown()
+
+	req, resp, err := te.doUnaryCall(&rpcConfig{success: false})
+	if err == nil {
+		t.Fatalf("got error <nil>; want <non-nil>")
+	}
+	te.srv.GracefulStop() // Wait for the server to stop.
+
+	expect := &expectedData{
+		method:     "/grpc.testing.TestService/UnaryCall",
+		serverAddr: te.srvAddr,
+		requests:   []*testpb.SimpleRequest{req},
+		responses:  []*testpb.SimpleResponse{resp},
+		err:        err,
+	}
+
+	checkFuncs := []func(t *testing.T, d *gotData, e *expectedData){
+		checkConnBegin,
 		checkInHeader,
 		checkBegin,
 		checkInPayload,
 		checkOutHeader,
 		checkOutTrailer,
 		checkEnd,
-	})
+		checkConnEnd,
+	}
+
+	checkServerStats(t, got, expect, checkFuncs)
 }
 
 func TestServerStatsStreamingRPC(t *testing.T) {
+	var (
+		mu  sync.Mutex
+		got []*gotData
+	)
+	stats.RegisterRPCHandler(func(ctx context.Context, s stats.RPCStats) {
+		mu.Lock()
+		defer mu.Unlock()
+		if !s.IsClient() {
+			got = append(got, &gotData{ctx, false, s})
+		}
+	})
+	stats.RegisterConnHandler(func(ctx context.Context, s stats.ConnStats) {
+		mu.Lock()
+		defer mu.Unlock()
+		if !s.IsClient() {
+			got = append(got, &gotData{ctx, false, s})
+		}
+	})
+	stats.RegisterConnTagger(tagConnCtx)
+	stats.RegisterRPCTagger(tagRPCCtx)
+	stats.Start()
+	defer stats.Stop()
+
+	te := newTest(t, "gzip")
+	te.startServer(&testServer{})
+	defer te.tearDown()
+
 	count := 5
+	reqs, resps, err := te.doFullDuplexCallRoundtrip(&rpcConfig{count: count, success: true})
+	if err == nil {
+		t.Fatalf(err.Error())
+	}
+	te.srv.GracefulStop() // Wait for the server to stop.
+
+	expect := &expectedData{
+		method:      "/grpc.testing.TestService/FullDuplexCall",
+		serverAddr:  te.srvAddr,
+		compression: "gzip",
+		requests:    reqs,
+		responses:   resps,
+	}
+
 	checkFuncs := []func(t *testing.T, d *gotData, e *expectedData){
+		checkConnBegin,
 		checkInHeader,
 		checkBegin,
 		checkOutHeader,
@@ -760,20 +866,68 @@ func TestServerStatsStreamingRPC(t *testing.T) {
 	checkFuncs = append(checkFuncs,
 		checkOutTrailer,
 		checkEnd,
+		checkConnEnd,
 	)
-	testServerStats(t, &testConfig{compress: "gzip"}, &rpcConfig{count: count, success: true, streaming: true}, checkFuncs)
+
+	checkServerStats(t, got, expect, checkFuncs)
 }
 
 func TestServerStatsStreamingRPCError(t *testing.T) {
+	var (
+		mu  sync.Mutex
+		got []*gotData
+	)
+	stats.RegisterRPCHandler(func(ctx context.Context, s stats.RPCStats) {
+		mu.Lock()
+		defer mu.Unlock()
+		if !s.IsClient() {
+			got = append(got, &gotData{ctx, false, s})
+		}
+	})
+	stats.RegisterConnHandler(func(ctx context.Context, s stats.ConnStats) {
+		mu.Lock()
+		defer mu.Unlock()
+		if !s.IsClient() {
+			got = append(got, &gotData{ctx, false, s})
+		}
+	})
+	stats.RegisterConnTagger(tagConnCtx)
+	stats.RegisterRPCTagger(tagRPCCtx)
+	stats.Start()
+	defer stats.Stop()
+
+	te := newTest(t, "gzip")
+	te.startServer(&testServer{})
+	defer te.tearDown()
+
 	count := 5
-	testServerStats(t, &testConfig{compress: "gzip"}, &rpcConfig{count: count, success: false, streaming: true}, []func(t *testing.T, d *gotData, e *expectedData){
+	reqs, resps, err := te.doFullDuplexCallRoundtrip(&rpcConfig{count: count, success: false})
+	if err == nil {
+		t.Fatalf("got error <nil>; want <non-nil>")
+	}
+	te.srv.GracefulStop() // Wait for the server to stop.
+
+	expect := &expectedData{
+		method:      "/grpc.testing.TestService/FullDuplexCall",
+		serverAddr:  te.srvAddr,
+		compression: "gzip",
+		requests:    reqs,
+		responses:   resps,
+		err:         err,
+	}
+
+	checkFuncs := []func(t *testing.T, d *gotData, e *expectedData){
+		checkConnBegin,
 		checkInHeader,
 		checkBegin,
 		checkOutHeader,
 		checkInPayload,
 		checkOutTrailer,
 		checkEnd,
-	})
+		checkConnEnd,
+	}
+
+	checkServerStats(t, got, expect, checkFuncs)
 }
 
 type checkFuncWithCount struct {
@@ -787,19 +941,24 @@ func checkClientStats(t *testing.T, got []*gotData, expect *expectedData, checkF
 		expectLen += v.c
 	}
 	if len(got) != expectLen {
-		for i, g := range got {
-			t.Errorf(" - %v, %T", i, g.s)
-		}
 		t.Fatalf("got %v stats, want %v stats", len(got), expectLen)
 	}
 
-	var rpcctx context.Context
+	var (
+		rpcctx  context.Context
+		connctx context.Context
+	)
 	for i := 0; i < len(got); i++ {
 		if _, ok := got[i].s.(stats.RPCStats); ok {
 			if rpcctx != nil && got[i].ctx != rpcctx {
 				t.Fatalf("got different contexts with stats %T", got[i].s)
 			}
 			rpcctx = got[i].ctx
+		} else {
+			if connctx != nil && got[i].ctx != connctx {
+				t.Fatalf("got different contexts with stats %T", got[i].s)
+			}
+			connctx = got[i].ctx
 		}
 	}
 
@@ -865,75 +1024,51 @@ func checkClientStats(t *testing.T, got []*gotData, expect *expectedData, checkF
 	}
 }
 
-func testClientStats(t *testing.T, tc *testConfig, cc *rpcConfig, checkFuncs map[int]*checkFuncWithCount) {
-	h := &statshandler{}
-	te := newTest(t, tc, h, nil)
+func TestClientStatsUnaryRPC(t *testing.T) {
+	var (
+		mu  sync.Mutex
+		got []*gotData
+	)
+	stats.RegisterRPCHandler(func(ctx context.Context, s stats.RPCStats) {
+		mu.Lock()
+		defer mu.Unlock()
+		if s.IsClient() {
+			got = append(got, &gotData{ctx, true, s})
+		}
+	})
+	stats.RegisterConnHandler(func(ctx context.Context, s stats.ConnStats) {
+		mu.Lock()
+		defer mu.Unlock()
+		if s.IsClient() {
+			got = append(got, &gotData{ctx, true, s})
+		}
+	})
+	stats.RegisterConnTagger(tagConnCtx)
+	stats.RegisterRPCTagger(tagRPCCtx)
+	stats.Start()
+	defer stats.Stop()
+
+	te := newTest(t, "")
 	te.startServer(&testServer{})
 	defer te.tearDown()
 
-	var (
-		reqs  []*testpb.SimpleRequest
-		resps []*testpb.SimpleResponse
-		err   error
-	)
-	if !cc.streaming {
-		req, resp, e := te.doUnaryCall(cc)
-		reqs = []*testpb.SimpleRequest{req}
-		resps = []*testpb.SimpleResponse{resp}
-		err = e
-	} else {
-		reqs, resps, err = te.doFullDuplexCallRoundtrip(cc)
+	failfast := false
+	req, resp, err := te.doUnaryCall(&rpcConfig{success: true, failfast: failfast})
+	if err != nil {
+		t.Fatalf(err.Error())
 	}
-	if cc.success != (err == nil) {
-		t.Fatalf("cc.success: %v, got error: %v", cc.success, err)
-	}
-	te.cc.Close()
 	te.srv.GracefulStop() // Wait for the server to stop.
 
-	lenRPCStats := 0
-	for _, v := range checkFuncs {
-		lenRPCStats += v.c
-	}
-	for {
-		h.mu.Lock()
-		if len(h.gotRPC) >= lenRPCStats {
-			h.mu.Unlock()
-			break
-		}
-		h.mu.Unlock()
-		time.Sleep(10 * time.Millisecond)
-	}
-
-	for {
-		h.mu.Lock()
-		if _, ok := h.gotConn[len(h.gotConn)-1].s.(*stats.ConnEnd); ok {
-			h.mu.Unlock()
-			break
-		}
-		h.mu.Unlock()
-		time.Sleep(10 * time.Millisecond)
-	}
-
 	expect := &expectedData{
-		serverAddr:  te.srvAddr,
-		compression: tc.compress,
-		requests:    reqs,
-		responses:   resps,
-		failfast:    cc.failfast,
-		err:         err,
-	}
-	if !cc.streaming {
-		expect.method = "/grpc.testing.TestService/UnaryCall"
-	} else {
-		expect.method = "/grpc.testing.TestService/FullDuplexCall"
+		method:     "/grpc.testing.TestService/UnaryCall",
+		serverAddr: te.srvAddr,
+		requests:   []*testpb.SimpleRequest{req},
+		responses:  []*testpb.SimpleResponse{resp},
+		failfast:   failfast,
 	}
 
-	checkConnStats(t, h.gotConn)
-	checkClientStats(t, h.gotRPC, expect, checkFuncs)
-}
-
-func TestClientStatsUnaryRPC(t *testing.T) {
-	testClientStats(t, &testConfig{compress: ""}, &rpcConfig{success: true, failfast: false}, map[int]*checkFuncWithCount{
+	checkFuncs := map[int]*checkFuncWithCount{
+		connbegin:  {checkConnBegin, 1},
 		begin:      {checkBegin, 1},
 		outHeader:  {checkOutHeader, 1},
 		outPayload: {checkOutPayload, 1},
@@ -941,23 +1076,117 @@ func TestClientStatsUnaryRPC(t *testing.T) {
 		inPayload:  {checkInPayload, 1},
 		inTrailer:  {checkInTrailer, 1},
 		end:        {checkEnd, 1},
-	})
+		connend:    {checkConnEnd, 1},
+	}
+
+	checkClientStats(t, got, expect, checkFuncs)
 }
 
 func TestClientStatsUnaryRPCError(t *testing.T) {
-	testClientStats(t, &testConfig{compress: ""}, &rpcConfig{success: false, failfast: false}, map[int]*checkFuncWithCount{
+	var (
+		mu  sync.Mutex
+		got []*gotData
+	)
+	stats.RegisterRPCHandler(func(ctx context.Context, s stats.RPCStats) {
+		mu.Lock()
+		defer mu.Unlock()
+		if s.IsClient() {
+			got = append(got, &gotData{ctx, true, s})
+		}
+	})
+	stats.RegisterConnHandler(func(ctx context.Context, s stats.ConnStats) {
+		mu.Lock()
+		defer mu.Unlock()
+		if s.IsClient() {
+			got = append(got, &gotData{ctx, true, s})
+		}
+	})
+	stats.RegisterConnTagger(tagConnCtx)
+	stats.RegisterRPCTagger(tagRPCCtx)
+	stats.Start()
+	defer stats.Stop()
+
+	te := newTest(t, "")
+	te.startServer(&testServer{})
+	defer te.tearDown()
+
+	failfast := true
+	req, resp, err := te.doUnaryCall(&rpcConfig{success: false, failfast: failfast})
+	if err == nil {
+		t.Fatalf("got error <nil>; want <non-nil>")
+	}
+	te.srv.GracefulStop() // Wait for the server to stop.
+
+	expect := &expectedData{
+		method:     "/grpc.testing.TestService/UnaryCall",
+		serverAddr: te.srvAddr,
+		requests:   []*testpb.SimpleRequest{req},
+		responses:  []*testpb.SimpleResponse{resp},
+		err:        err,
+		failfast:   failfast,
+	}
+
+	checkFuncs := map[int]*checkFuncWithCount{
+		connbegin:  {checkConnBegin, 1},
 		begin:      {checkBegin, 1},
 		outHeader:  {checkOutHeader, 1},
 		outPayload: {checkOutPayload, 1},
 		inHeader:   {checkInHeader, 1},
 		inTrailer:  {checkInTrailer, 1},
 		end:        {checkEnd, 1},
-	})
+		connend:    {checkConnEnd, 1},
+	}
+
+	checkClientStats(t, got, expect, checkFuncs)
 }
 
 func TestClientStatsStreamingRPC(t *testing.T) {
+	var (
+		mu  sync.Mutex
+		got []*gotData
+	)
+	stats.RegisterRPCHandler(func(ctx context.Context, s stats.RPCStats) {
+		mu.Lock()
+		defer mu.Unlock()
+		if s.IsClient() {
+			got = append(got, &gotData{ctx, true, s})
+		}
+	})
+	stats.RegisterConnHandler(func(ctx context.Context, s stats.ConnStats) {
+		mu.Lock()
+		defer mu.Unlock()
+		if s.IsClient() {
+			got = append(got, &gotData{ctx, true, s})
+		}
+	})
+	stats.RegisterConnTagger(tagConnCtx)
+	stats.RegisterRPCTagger(tagRPCCtx)
+	stats.Start()
+	defer stats.Stop()
+
+	te := newTest(t, "gzip")
+	te.startServer(&testServer{})
+	defer te.tearDown()
+
 	count := 5
-	testClientStats(t, &testConfig{compress: "gzip"}, &rpcConfig{count: count, success: true, failfast: false, streaming: true}, map[int]*checkFuncWithCount{
+	failfast := false
+	reqs, resps, err := te.doFullDuplexCallRoundtrip(&rpcConfig{count: count, success: true, failfast: failfast})
+	if err == nil {
+		t.Fatalf(err.Error())
+	}
+	te.srv.GracefulStop() // Wait for the server to stop.
+
+	expect := &expectedData{
+		method:      "/grpc.testing.TestService/FullDuplexCall",
+		serverAddr:  te.srvAddr,
+		compression: "gzip",
+		requests:    reqs,
+		responses:   resps,
+		failfast:    failfast,
+	}
+
+	checkFuncs := map[int]*checkFuncWithCount{
+		connbegin:  {checkConnBegin, 1},
 		begin:      {checkBegin, 1},
 		outHeader:  {checkOutHeader, 1},
 		outPayload: {checkOutPayload, count},
@@ -965,17 +1194,68 @@ func TestClientStatsStreamingRPC(t *testing.T) {
 		inPayload:  {checkInPayload, count},
 		inTrailer:  {checkInTrailer, 1},
 		end:        {checkEnd, 1},
-	})
+		connend:    {checkConnEnd, 1},
+	}
+
+	checkClientStats(t, got, expect, checkFuncs)
 }
 
 func TestClientStatsStreamingRPCError(t *testing.T) {
+	var (
+		mu  sync.Mutex
+		got []*gotData
+	)
+	stats.RegisterRPCHandler(func(ctx context.Context, s stats.RPCStats) {
+		mu.Lock()
+		defer mu.Unlock()
+		if s.IsClient() {
+			got = append(got, &gotData{ctx, true, s})
+		}
+	})
+	stats.RegisterConnHandler(func(ctx context.Context, s stats.ConnStats) {
+		mu.Lock()
+		defer mu.Unlock()
+		if s.IsClient() {
+			got = append(got, &gotData{ctx, true, s})
+		}
+	})
+	stats.RegisterConnTagger(tagConnCtx)
+	stats.RegisterRPCTagger(tagRPCCtx)
+	stats.Start()
+	defer stats.Stop()
+
+	te := newTest(t, "gzip")
+	te.startServer(&testServer{})
+	defer te.tearDown()
+
 	count := 5
-	testClientStats(t, &testConfig{compress: "gzip"}, &rpcConfig{count: count, success: false, failfast: false, streaming: true}, map[int]*checkFuncWithCount{
+	failfast := true
+	reqs, resps, err := te.doFullDuplexCallRoundtrip(&rpcConfig{count: count, success: false, failfast: failfast})
+	if err == nil {
+		t.Fatalf("got error <nil>; want <non-nil>")
+	}
+	te.srv.GracefulStop() // Wait for the server to stop.
+
+	expect := &expectedData{
+		method:      "/grpc.testing.TestService/FullDuplexCall",
+		serverAddr:  te.srvAddr,
+		compression: "gzip",
+		requests:    reqs,
+		responses:   resps,
+		err:         err,
+		failfast:    failfast,
+	}
+
+	checkFuncs := map[int]*checkFuncWithCount{
+		connbegin:  {checkConnBegin, 1},
 		begin:      {checkBegin, 1},
 		outHeader:  {checkOutHeader, 1},
 		outPayload: {checkOutPayload, 1},
 		inHeader:   {checkInHeader, 1},
 		inTrailer:  {checkInTrailer, 1},
 		end:        {checkEnd, 1},
-	})
+		connend:    {checkConnEnd, 1},
+	}
+
+	checkClientStats(t, got, expect, checkFuncs)
 }

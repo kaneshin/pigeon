@@ -22,12 +22,8 @@ import (
 	"sync"
 	"time"
 
-	"cloud.google.com/go/internal"
-	gax "github.com/googleapis/gax-go"
-
 	"golang.org/x/net/context"
 	bq "google.golang.org/api/bigquery/v2"
-	"google.golang.org/api/googleapi"
 )
 
 // service provides an internal abstraction to isolate the generated
@@ -260,12 +256,7 @@ func (s *bigqueryService) insertRows(ctx context.Context, projectID, datasetID, 
 			Json:     m,
 		})
 	}
-	var res *bq.TableDataInsertAllResponse
-	err := runWithRetry(ctx, func() error {
-		var err error
-		res, err = s.s.Tabledata.InsertAll(projectID, datasetID, tableID, req).Context(ctx).Do()
-		return err
-	})
+	res, err := s.s.Tabledata.InsertAll(projectID, datasetID, tableID, req).Context(ctx).Do()
 	if err != nil {
 		return err
 	}
@@ -394,7 +385,6 @@ type createTableConf struct {
 	viewQuery                     string
 	schema                        *bq.TableSchema
 	useStandardSQL                bool
-	timePartitioning              *TimePartitioning
 }
 
 // createTable creates a table in the BigQuery service.
@@ -411,7 +401,7 @@ func (s *bigqueryService) createTable(ctx context.Context, conf *createTableConf
 		},
 	}
 	if !conf.expiration.IsZero() {
-		table.ExpirationTime = conf.expiration.UnixNano() / 1e6
+		table.ExpirationTime = conf.expiration.UnixNano() / 1000
 	}
 	// TODO(jba): make it impossible to provide both a view query and a schema.
 	if conf.viewQuery != "" {
@@ -420,17 +410,11 @@ func (s *bigqueryService) createTable(ctx context.Context, conf *createTableConf
 		}
 		if conf.useStandardSQL {
 			table.View.UseLegacySql = false
-			table.View.ForceSendFields = append(table.View.ForceSendFields, "UseLegacySql")
+			table.ForceSendFields = append(table.ForceSendFields, "UseLegacySql")
 		}
 	}
 	if conf.schema != nil {
 		table.Schema = conf.schema
-	}
-	if conf.timePartitioning != nil {
-		table.TimePartitioning = &bq.TimePartitioning{
-			Type:         "DAY",
-			ExpirationMs: int64(conf.timePartitioning.Expiration.Seconds() * 1000),
-		}
 	}
 
 	_, err := s.s.Tables.Insert(conf.projectID, conf.datasetID, table).Context(ctx).Do()
@@ -466,9 +450,6 @@ func bqTableToMetadata(t *bq.Table) *TableMetadata {
 	}
 	if t.View != nil {
 		md.View = t.View.Query
-	}
-	if t.TimePartitioning != nil {
-		md.TimePartitioning = &TimePartitioning{time.Duration(t.TimePartitioning.ExpirationMs) * time.Millisecond}
 	}
 
 	return md
@@ -588,36 +569,4 @@ func (s *bigqueryService) convertListedDataset(d *bq.DatasetListDatasets) *Datas
 		ProjectID: d.DatasetReference.ProjectId,
 		DatasetID: d.DatasetReference.DatasetId,
 	}
-}
-
-// runWithRetry calls the function until it returns nil or a non-retryable error, or
-// the context is done.
-// See the similar function in ../storage/invoke.go. The main difference is the
-// reason for retrying.
-func runWithRetry(ctx context.Context, call func() error) error {
-	backoff := gax.Backoff{
-		Initial:    2 * time.Second,
-		Max:        32 * time.Second,
-		Multiplier: 2,
-	}
-	return internal.Retry(ctx, backoff, func() (stop bool, err error) {
-		err = call()
-		if err == nil {
-			return true, nil
-		}
-		e, ok := err.(*googleapi.Error)
-		if !ok {
-			return true, err
-		}
-		var reason string
-		if len(e.Errors) > 0 {
-			reason = e.Errors[0].Reason
-		}
-		// Retry using the criteria in
-		// https://cloud.google.com/bigquery/troubleshooting-errors
-		if reason == "backendError" && (e.Code == 500 || e.Code == 503) {
-			return false, nil
-		}
-		return true, err
-	})
 }

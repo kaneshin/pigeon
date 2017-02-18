@@ -1,10 +1,10 @@
 {
-    "memo": "6b34df66dd5f758d963817036ff3ce42f9ce2f3aa7a0361be4615d112e3389dd",
+    "memo": "cdc2b499b60a210bf7ea6b923908450360dc60defce57673cee2b9181a43821b",
     "projects": [
         {
             "name": "cloud.google.com/go",
-            "branch": "master",
-            "revision": "2fad13a91cc5c2c321b67c95ca1e9ce123ebf5ac",
+            "version": "v0.6.0",
+            "revision": "c116c7972ec94f148459a304d07a67ecbc770d4b",
             "packages": [
                 "compute/metadata"
             ]
@@ -12,7 +12,7 @@
         {
             "name": "github.com/davecgh/go-spew",
             "version": "v1.1.0",
-            "revision": "a7a0063072ed89d04285d3d3362aa590ed9f7878",
+            "revision": "346938d642f2ec3594ed81d874461961cd0faa76",
             "packages": [
                 "spew"
             ]
@@ -20,7 +20,7 @@
         {
             "name": "github.com/golang/protobuf",
             "branch": "master",
-            "revision": "8ee79997227bf9b34611aee7946ae64735e6fd93",
+            "revision": "69b215d01a5606c843240eab4937eab3acee6530",
             "packages": [
                 "proto"
             ]
@@ -52,7 +52,7 @@
         {
             "name": "golang.org/x/net",
             "branch": "master",
-            "revision": "f2499483f923065a842d38eb4c7f1927e6fc6e6d",
+            "revision": "6b27048ae5e6ad1ef927e72e437531493de612fe",
             "packages": [
                 "context",
                 "context/ctxhttp",
@@ -64,7 +64,7 @@
         {
             "name": "golang.org/x/oauth2",
             "branch": "master",
-            "revision": "4784bb855e56a530f1ce5d788959359ed6cb4a16",
+            "revision": "b9780ec78894ab900c062d58ee3076cd9b2a4501",
             "packages": [
                 "google"
             ]
@@ -72,15 +72,15 @@
         {
             "name": "google.golang.org/api",
             "branch": "master",
-            "revision": "dfa61ae24628a06502b9c2805d983b57e89399b5",
+            "revision": "bc20c61134e1d25265dd60049f5735381e79b631",
             "packages": [
                 "vision/v1"
             ]
         },
         {
             "name": "google.golang.org/appengine",
-            "branch": "master",
-            "revision": "3f4dbbc0ec153a39878fd524ece9f39732bd4998",
+            "version": "v1.0.0",
+            "revision": "150dc57a1b433e64154302bdc40b6bb8aefa313a",
             "packages": [
                 ".",
                 "urlfetch"
@@ -88,8 +88,8 @@
         },
         {
             "name": "google.golang.org/grpc",
-            "branch": "master",
-            "revision": "50955793b0183f9de69bd78e2ec251cf20aab121",
+            "version": "v1.0.5",
+            "revision": "708a7f9f3283aa2d4f6132d287d78683babe55c8",
             "packages": [
                 ".",
                 "codes"

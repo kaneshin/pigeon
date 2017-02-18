@@ -1,8 +1,5 @@
 {
     "dependencies": {
-        "golang.org/x/net": {
-            "branch": "master"
-        },
         "golang.org/x/oauth2": {
             "branch": "master"
         },

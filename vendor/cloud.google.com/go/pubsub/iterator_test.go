@@ -203,38 +203,13 @@ func TestAfterAbortReturnsNoMoreThanOneMessage(t *testing.T) {
 	}
 }
 
-type fetcherServiceWithModifyAckDeadline struct {
-	fetcherService
-	events chan string
-}
-
-func (f *fetcherServiceWithModifyAckDeadline) modifyAckDeadline(_ context.Context, _ string, d time.Duration, ids []string) error {
-	// Different versions of Go use different representations for time.Duration(0).
-	var ds string
-	if d == 0 {
-		ds = "0s"
-	} else {
-		ds = d.String()
-	}
-	f.events <- fmt.Sprintf("modAck(%v, %s)", ids, ds)
-	return nil
-}
-
-func (f *fetcherServiceWithModifyAckDeadline) splitAckIDs(ackIDs []string) ([]string, []string) {
-	return ackIDs, nil
-}
-
 func TestMultipleStopCallsBlockUntilMessageDone(t *testing.T) {
-	events := make(chan string, 3)
-	s := &fetcherServiceWithModifyAckDeadline{
-		fetcherService{
-			results: []fetchResult{
-				{
-					msgs: []*Message{{ackID: "a"}, {ackID: "b"}},
-				},
+	s := &fetcherService{
+		results: []fetchResult{
+			{
+				msgs: []*Message{{ackID: "a"}, {ackID: "b"}},
 			},
 		},
-		events,
 	}
 
 	ctx := context.Background()
@@ -245,6 +220,7 @@ func TestMultipleStopCallsBlockUntilMessageDone(t *testing.T) {
 		t.Errorf("error calling Next: %v", err)
 	}
 
+	events := make(chan string, 3)
 	go func() {
 		it.Stop()
 		events <- "stopped"
@@ -255,11 +231,10 @@ func TestMultipleStopCallsBlockUntilMessageDone(t *testing.T) {
 	}()
 
 	time.Sleep(10 * time.Millisecond)
+	events <- "nacked"
 	m.Done(false)
 
-	got := []string{<-events, <-events, <-events}
-	want := []string{"modAck([a], 0s)", "stopped", "stopped"}
-	if !reflect.DeepEqual(got, want) {
+	if got, want := []string{<-events, <-events, <-events}, []string{"nacked", "stopped", "stopped"}; !reflect.DeepEqual(got, want) {
 		t.Errorf("stopping iterator, got: %v ; want: %v", got, want)
 	}
 
@@ -270,43 +245,5 @@ func TestMultipleStopCallsBlockUntilMessageDone(t *testing.T) {
 	}
 	if err != iterator.Done {
 		t.Errorf("err got: %v ; want: %v", err, iterator.Done)
-	}
-}
-
-func TestFastNack(t *testing.T) {
-	events := make(chan string, 3)
-	s := &fetcherServiceWithModifyAckDeadline{
-		fetcherService{
-			results: []fetchResult{
-				{
-					msgs: []*Message{{ackID: "a"}, {ackID: "b"}},
-				},
-			},
-		},
-		events,
-	}
-
-	ctx := context.Background()
-	it := newMessageIterator(ctx, s, "subname", &pullOptions{
-		ackDeadline:  time.Second * 6,
-		maxExtension: time.Second * 10,
-	})
-	// Get both messages.
-	_, err := it.Next()
-	if err != nil {
-		t.Errorf("error calling Next: %v", err)
-	}
-	m2, err := it.Next()
-	if err != nil {
-		t.Errorf("error calling Next: %v", err)
-	}
-	// Ignore the first, nack the second.
-	m2.Done(false)
-
-	got := []string{<-events, <-events}
-	// The nack should happen before the deadline extension.
-	want := []string{"modAck([b], 0s)", "modAck([a], 6s)"}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("got: %v ; want: %v", got, want)
 	}
 }

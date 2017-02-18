@@ -73,7 +73,7 @@ func (c *Client) Close() error {
 }
 
 var (
-	idempotentRetryCodes  = []codes.Code{codes.DeadlineExceeded, codes.Unavailable, codes.Aborted,codes.Internal}
+	idempotentRetryCodes  = []codes.Code{codes.DeadlineExceeded, codes.Unavailable, codes.Aborted}
 	isIdempotentRetryCode = make(map[codes.Code]bool)
 	retryOptions          = []gax.CallOption{
 		gax.WithDelayTimeoutSettings(100*time.Millisecond, 2000*time.Millisecond, 1.2),
@@ -471,13 +471,18 @@ func NewCondMutation(cond Filter, mtrue, mfalse *Mutation) *Mutation {
 }
 
 // Set sets a value in a specified column, with the given timestamp.
-// The timestamp will be truncated to millisecond granularity.
+// The timestamp will be truncated to millisecond resolution.
 // A timestamp of ServerTime means to use the server timestamp.
 func (m *Mutation) Set(family, column string, ts Timestamp, value []byte) {
+	if ts != ServerTime {
+		// Truncate to millisecond resolution, since that's the default table config.
+		// TODO(dsymonds): Provide a way to override this behaviour.
+		ts -= ts % 1000
+	}
 	m.ops = append(m.ops, &btpb.Mutation{Mutation: &btpb.Mutation_SetCell_{&btpb.Mutation_SetCell{
 		FamilyName:      family,
 		ColumnQualifier: []byte(column),
-		TimestampMicros: int64(ts.TruncateToMilliseconds()),
+		TimestampMicros: int64(ts),
 		Value:           value,
 	}}})
 }
@@ -493,14 +498,13 @@ func (m *Mutation) DeleteCellsInColumn(family, column string) {
 // DeleteTimestampRange deletes all cells whose columns are family:column
 // and whose timestamps are in the half-open interval [start, end).
 // If end is zero, it will be interpreted as infinity.
-// The timestamps will be truncated to millisecond granularity.
 func (m *Mutation) DeleteTimestampRange(family, column string, start, end Timestamp) {
 	m.ops = append(m.ops, &btpb.Mutation{Mutation: &btpb.Mutation_DeleteFromColumn_{&btpb.Mutation_DeleteFromColumn{
 		FamilyName:      family,
 		ColumnQualifier: []byte(column),
 		TimeRange: &btpb.TimestampRange{
-			StartTimestampMicros: int64(start.TruncateToMilliseconds()),
-			EndTimestampMicros:   int64(end.TruncateToMilliseconds()),
+			StartTimestampMicros: int64(start),
+			EndTimestampMicros:   int64(end),
 		},
 	}}})
 }
@@ -657,15 +661,6 @@ func Now() Timestamp { return Time(time.Now()) }
 
 // Time converts a Timestamp into a time.Time.
 func (ts Timestamp) Time() time.Time { return time.Unix(0, int64(ts)*1e3) }
-
-// TruncateToMilliseconds truncates a Timestamp to millisecond granularity,
-// which is currently the only granularity supported.
-func (ts Timestamp) TruncateToMilliseconds() Timestamp {
-	if ts == ServerTime {
-		return ts
-	}
-	return ts - ts % 1000
-}
 
 // ApplyReadModifyWrite applies a ReadModifyWrite to a specific row.
 // It returns the newly written cells.

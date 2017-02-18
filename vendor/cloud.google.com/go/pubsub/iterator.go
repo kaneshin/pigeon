@@ -20,7 +20,6 @@ import (
 
 	"golang.org/x/net/context"
 	"google.golang.org/api/iterator"
-	"google.golang.org/api/support/bundler"
 )
 
 type MessageIterator struct {
@@ -31,7 +30,6 @@ type MessageIterator struct {
 
 	ka     *keepAlive
 	acker  *acker
-	nacker *bundler.Bundler
 	puller *puller
 
 	// mu ensures that cleanup only happens once, and concurrent Stop
@@ -74,18 +72,6 @@ func newMessageIterator(ctx context.Context, s service, subName string, po *pull
 		Notify:  ka.Remove,
 	}
 
-	nacker := bundler.NewBundler("", func(ackIDs interface{}) {
-		// NACK by setting the ack deadline to zero, to make the message
-		// immediately available for redelivery.
-		//
-		// If the RPC fails, nothing we can do about it. In the worst case, the
-		// deadline for these messages will expire and they will still get
-		// redelivered.
-		_ = s.modifyAckDeadline(ctx, subName, 0, ackIDs.([]string))
-	})
-	nacker.DelayThreshold = keepAlivePeriod / 10 // nack promptly
-	nacker.BundleCountThreshold = 10
-
 	pull := newPuller(s, subName, ctx, po.maxPrefetch, ka.Add, ka.Remove)
 
 	ka.Start()
@@ -95,7 +81,6 @@ func newMessageIterator(ctx context.Context, s service, subName string, po *pull
 		ackTicker: ackTicker,
 		ka:        ka,
 		acker:     ack,
-		nacker:    nacker,
 		puller:    pull,
 		closed:    make(chan struct{}),
 	}
@@ -158,7 +143,7 @@ func (it *MessageIterator) Stop() {
 
 	// There are no more live messages, so kill off the acker.
 	it.acker.Stop()
-	it.nacker.Stop()
+
 	it.kaTicker.Stop()
 	it.ackTicker.Stop()
 }
@@ -169,7 +154,9 @@ func (it *MessageIterator) done(ackID string, ack bool) {
 		// There's no need to call it.ka.Remove here, as acker will
 		// call it via its Notify function.
 	} else {
+		// TODO: explicitly NACK the message by sending an
+		// ModifyAckDeadline request with 0s deadline, to make the
+		// message immediately available for redelivery.
 		it.ka.Remove(ackID)
-		_ = it.nacker.Add(ackID, len(ackID)) // ignore error; this is just an optimization
 	}
 }

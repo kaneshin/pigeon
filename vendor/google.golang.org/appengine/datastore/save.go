@@ -166,7 +166,7 @@ func saveStructProperty(props *[]Property, name string, noIndex, multiple bool, 
 			if err != nil {
 				return fmt.Errorf("datastore: unsupported struct field: %v", err)
 			}
-			return sub.save(props, name+".", noIndex, multiple)
+			return sub.(structPLS).save(props, name, noIndex, multiple)
 		}
 	}
 	if p.Value == nil {
@@ -185,13 +185,19 @@ func (s structPLS) Save() ([]Property, error) {
 }
 
 func (s structPLS) save(props *[]Property, prefix string, noIndex, multiple bool) error {
-	for name, f := range s.codec.fields {
-		name = prefix + name
-		v := s.v.FieldByIndex(f.path)
+	for i, t := range s.codec.byIndex {
+		if t.name == "-" {
+			continue
+		}
+		name := t.name
+		if prefix != "" {
+			name = prefix + name
+		}
+		v := s.v.Field(i)
 		if !v.IsValid() || !v.CanSet() {
 			continue
 		}
-		noIndex1 := noIndex || f.noIndex
+		noIndex1 := noIndex || t.noIndex
 		// For slice fields that aren't []byte, save each element.
 		if v.Kind() == reflect.Slice && v.Type().Elem().Kind() != reflect.Uint8 {
 			for j := 0; j < v.Len(); j++ {

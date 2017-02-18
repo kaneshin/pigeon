@@ -1,6 +1,7 @@
 package pigeon
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -8,7 +9,6 @@ import (
 	"net/http"
 	"net/url"
 
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2/google"
 	vision "google.golang.org/api/vision/v1"
 
