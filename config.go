@@ -20,9 +20,9 @@ type (
 	}
 )
 
-// NewConfig returns a new Config object.
-func NewConfig() Config {
-	return Config{}
+// NewConfig returns a new pointer Config object.
+func NewConfig() *Config {
+	return &Config{}
 }
 
 // WithCredentials sets a config Credentials value returning a Config pointer

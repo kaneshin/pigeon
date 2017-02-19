@@ -34,8 +34,7 @@ type (
 func New(c *Config, httpClient ...*http.Client) (*Client, error) {
 	if c == nil {
 		// Sets a configuration if passed nil value.
-		cfg := NewConfig()
-		c = &cfg
+		c = NewConfig()
 	}
 
 	// Use HTTP Client if assigned

@@ -14,13 +14,13 @@ func TestClient(t *testing.T) {
 	assert := assert.New(t)
 
 	cfg := NewConfig()
-	client, err := New(&cfg)
+	client, err := New(cfg)
 	assert.Nil(client)
 	assert.Error(err)
 
 	os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", "credentials/example.json")
 	cfg = NewConfig()
-	client, err = New(&cfg)
+	client, err = New(cfg)
 	assert.NotNil(client)
 	assert.NoError(err)
 	assert.NotNil(client.service)

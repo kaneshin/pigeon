@@ -25,7 +25,7 @@ func TestConfig(t *testing.T) {
 }
 
 func Benchmark_Config(b *testing.B) {
-	var c Config
+	var c *Config
 
 	b.Run("NewConfig", func(b *testing.B) {
 		b.ReportAllocs()
