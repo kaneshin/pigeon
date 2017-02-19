@@ -6,21 +6,19 @@ HAVE_GOLINT:=$(shell which golint)
 HAVE_GOCYCLO:=$(shell which gocyclo)
 HAVE_GOCOV:=$(shell which gocov)
 
-.PHONY: init build install unit unit-report
+TARGETS=$(addprefix github.com/kaneshin/pigeon/cmd/,pigeon)
+OBJS=$(notdir $(TARGETS))
 
-init:
+all: $(TARGETS)
 
-build:
-	@go build -v -o /tmp/pigeon github.com/kaneshin/pigeon/cmd/pigeon
+$(TARGETS):
+	@go install -v $@
 
-install:
-	@go install -v github.com/kaneshin/pigeon/cmd/pigeon
-
-unit: lint vet cyclo build test
-unit-report: lint vet cyclo build test-report
+.PHONY: unit unit-report
+unit: lint vet cyclo test
+unit-report: lint vet cyclo test-report
 
 .PHONY: lint vet cyclo test coverage test-report
-
 lint: golint
 	@echo "go lint"
 	@lint=`golint ./...`; \
@@ -53,7 +51,6 @@ test-report:
 		[ -f profile.out ] && cat profile.out >> coverage.txt && rm profile.out || true; done
 
 .PHONY: golint gocyclo gocov
-
 golint:
 ifndef HAVE_GOLINT
 	@echo "Installing linter"
