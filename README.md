@@ -239,7 +239,6 @@ $ pigeon -safe-search assets/lenna.jpg
 ]
 ```
 
-
 ## License
 
 [The MIT License (MIT)](http://kaneshin.mit-license.org/)
