@@ -1,4 +1,4 @@
-// Copyright 2016, Google Inc. All rights reserved.
+// Copyright 2017, Google Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package trace_test
 import (
 	"cloud.google.com/go/trace/apiv1"
 	"golang.org/x/net/context"
+	"google.golang.org/api/iterator"
 	cloudtracepb "google.golang.org/genproto/googleapis/devtools/cloudtrace/v1"
 )
 
@@ -79,9 +80,11 @@ func ExampleClient_ListTraces() {
 	it := c.ListTraces(ctx, req)
 	for {
 		resp, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
 		if err != nil {
 			// TODO: Handle error.
-			break
 		}
 		// TODO: Use resp.
 		_ = resp

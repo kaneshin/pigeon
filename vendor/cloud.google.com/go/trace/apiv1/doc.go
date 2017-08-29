@@ -1,4 +1,4 @@
-// Copyright 2016, Google Inc. All rights reserved.
+// Copyright 2017, Google Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 // AUTO-GENERATED CODE. DO NOT EDIT.
 
 // Package trace is an experimental, auto-generated package for the
-// trace API.
+// Stackdriver Trace API.
 //
 // Send and retrieve trace data from Stackdriver Trace. Data is generated and
 // available by default for all App Engine applications. Data from other
@@ -25,4 +25,24 @@
 // Use the client at cloud.google.com/go/trace in preference to this.
 package trace // import "cloud.google.com/go/trace/apiv1"
 
-const gapicNameVersion = "gapic/0.1.0"
+import (
+	"golang.org/x/net/context"
+	"google.golang.org/grpc/metadata"
+)
+
+func insertXGoog(ctx context.Context, val []string) context.Context {
+	md, _ := metadata.FromOutgoingContext(ctx)
+	md = md.Copy()
+	md["x-goog-api-client"] = val
+	return metadata.NewOutgoingContext(ctx, md)
+}
+
+// DefaultAuthScopes reports the authentication scopes required
+// by this package.
+func DefaultAuthScopes() []string {
+	return []string{
+		"https://www.googleapis.com/auth/cloud-platform",
+		"https://www.googleapis.com/auth/trace.append",
+		"https://www.googleapis.com/auth/trace.readonly",
+	}
+}

@@ -1,4 +1,4 @@
-// Copyright 2016, Google Inc. All rights reserved.
+// Copyright 2017, Google Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,11 +15,29 @@
 // AUTO-GENERATED CODE. DO NOT EDIT.
 
 // Package errorreporting is an experimental, auto-generated package for the
-// errorreporting API.
+// Stackdriver Error Reporting API.
 //
 // Stackdriver Error Reporting groups and counts similar errors from cloud
 // services. The Stackdriver Error Reporting API provides a way to report new
 // errors and read access to error groups and their associated errors.
 package errorreporting // import "cloud.google.com/go/errorreporting/apiv1beta1"
 
-const gapicNameVersion = "gapic/0.1.0"
+import (
+	"golang.org/x/net/context"
+	"google.golang.org/grpc/metadata"
+)
+
+func insertXGoog(ctx context.Context, val []string) context.Context {
+	md, _ := metadata.FromOutgoingContext(ctx)
+	md = md.Copy()
+	md["x-goog-api-client"] = val
+	return metadata.NewOutgoingContext(ctx, md)
+}
+
+// DefaultAuthScopes reports the authentication scopes required
+// by this package.
+func DefaultAuthScopes() []string {
+	return []string{
+		"https://www.googleapis.com/auth/cloud-platform",
+	}
+}

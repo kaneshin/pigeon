@@ -1,4 +1,4 @@
-// Copyright 2016, Google Inc. All rights reserved.
+// Copyright 2017, Google Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,11 +15,32 @@
 // AUTO-GENERATED CODE. DO NOT EDIT.
 
 // Package monitoring is an experimental, auto-generated package for the
-// monitoring API.
+// Stackdriver Monitoring API.
 //
 // Manages your Stackdriver Monitoring data and configurations. Most projects
 // must be associated with a Stackdriver account, with a few exceptions as
 // noted on the individual method pages.
 package monitoring // import "cloud.google.com/go/monitoring/apiv3"
 
-const gapicNameVersion = "gapic/0.1.0"
+import (
+	"golang.org/x/net/context"
+	"google.golang.org/grpc/metadata"
+)
+
+func insertXGoog(ctx context.Context, val []string) context.Context {
+	md, _ := metadata.FromOutgoingContext(ctx)
+	md = md.Copy()
+	md["x-goog-api-client"] = val
+	return metadata.NewOutgoingContext(ctx, md)
+}
+
+// DefaultAuthScopes reports the authentication scopes required
+// by this package.
+func DefaultAuthScopes() []string {
+	return []string{
+		"https://www.googleapis.com/auth/cloud-platform",
+		"https://www.googleapis.com/auth/monitoring",
+		"https://www.googleapis.com/auth/monitoring.read",
+		"https://www.googleapis.com/auth/monitoring.write",
+	}
+}

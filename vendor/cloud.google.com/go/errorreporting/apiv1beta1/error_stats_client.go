@@ -1,4 +1,4 @@
-// Copyright 2016, Google Inc. All rights reserved.
+// Copyright 2017, Google Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,12 +17,10 @@
 package errorreporting
 
 import (
-	"fmt"
 	"math"
-	"runtime"
-	"strings"
 	"time"
 
+	"cloud.google.com/go/internal/version"
 	gax "github.com/googleapis/gax-go"
 	"golang.org/x/net/context"
 	"google.golang.org/api/iterator"
@@ -31,7 +29,6 @@ import (
 	clouderrorreportingpb "google.golang.org/genproto/googleapis/devtools/clouderrorreporting/v1beta1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 )
 
 var (
@@ -48,9 +45,7 @@ type ErrorStatsCallOptions struct {
 func defaultErrorStatsClientOptions() []option.ClientOption {
 	return []option.ClientOption{
 		option.WithEndpoint("clouderrorreporting.googleapis.com:443"),
-		option.WithScopes(
-			"https://www.googleapis.com/auth/cloud-platform",
-		),
+		option.WithScopes(DefaultAuthScopes()...),
 	}
 }
 
@@ -88,7 +83,7 @@ type ErrorStatsClient struct {
 	CallOptions *ErrorStatsCallOptions
 
 	// The metadata to be sent with each request.
-	metadata metadata.MD
+	xGoogHeader []string
 }
 
 // NewErrorStatsClient creates a new error stats service client.
@@ -106,7 +101,7 @@ func NewErrorStatsClient(ctx context.Context, opts ...option.ClientOption) (*Err
 
 		errorStatsClient: clouderrorreportingpb.NewErrorStatsServiceClient(conn),
 	}
-	c.SetGoogleClientInfo("gax", gax.Version)
+	c.SetGoogleClientInfo()
 	return c, nil
 }
 
@@ -124,10 +119,10 @@ func (c *ErrorStatsClient) Close() error {
 // SetGoogleClientInfo sets the name and version of the application in
 // the `x-goog-api-client` header passed on each request. Intended for
 // use by Google-written clients.
-func (c *ErrorStatsClient) SetGoogleClientInfo(name, version string) {
-	goVersion := strings.Replace(runtime.Version(), " ", "_", -1)
-	v := fmt.Sprintf("%s/%s %s gax/%s go/%s", name, version, gapicNameVersion, gax.Version, goVersion)
-	c.metadata = metadata.Pairs("x-goog-api-client", v)
+func (c *ErrorStatsClient) SetGoogleClientInfo(keyval ...string) {
+	kv := append([]string{"gl-go", version.Go()}, keyval...)
+	kv = append(kv, "gapic", version.Repo, "gax", gax.Version, "grpc", grpc.Version)
+	c.xGoogHeader = []string{gax.XGoogHeader(kv...)}
 }
 
 // ErrorStatsProjectPath returns the path for the project resource.
@@ -142,9 +137,9 @@ func ErrorStatsProjectPath(project string) string {
 }
 
 // ListGroupStats lists the specified groups.
-func (c *ErrorStatsClient) ListGroupStats(ctx context.Context, req *clouderrorreportingpb.ListGroupStatsRequest) *ErrorGroupStatsIterator {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+func (c *ErrorStatsClient) ListGroupStats(ctx context.Context, req *clouderrorreportingpb.ListGroupStatsRequest, opts ...gax.CallOption) *ErrorGroupStatsIterator {
+	ctx = insertXGoog(ctx, c.xGoogHeader)
+	opts = append(c.CallOptions.ListGroupStats[0:len(c.CallOptions.ListGroupStats):len(c.CallOptions.ListGroupStats)], opts...)
 	it := &ErrorGroupStatsIterator{}
 	it.InternalFetch = func(pageSize int, pageToken string) ([]*clouderrorreportingpb.ErrorGroupStats, string, error) {
 		var resp *clouderrorreportingpb.ListGroupStatsResponse
@@ -154,11 +149,11 @@ func (c *ErrorStatsClient) ListGroupStats(ctx context.Context, req *clouderrorre
 		} else {
 			req.PageSize = int32(pageSize)
 		}
-		err := gax.Invoke(ctx, func(ctx context.Context) error {
+		err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 			var err error
-			resp, err = c.errorStatsClient.ListGroupStats(ctx, req)
+			resp, err = c.errorStatsClient.ListGroupStats(ctx, req, settings.GRPC...)
 			return err
-		}, c.CallOptions.ListGroupStats...)
+		}, opts...)
 		if err != nil {
 			return nil, "", err
 		}
@@ -177,9 +172,9 @@ func (c *ErrorStatsClient) ListGroupStats(ctx context.Context, req *clouderrorre
 }
 
 // ListEvents lists the specified events.
-func (c *ErrorStatsClient) ListEvents(ctx context.Context, req *clouderrorreportingpb.ListEventsRequest) *ErrorEventIterator {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+func (c *ErrorStatsClient) ListEvents(ctx context.Context, req *clouderrorreportingpb.ListEventsRequest, opts ...gax.CallOption) *ErrorEventIterator {
+	ctx = insertXGoog(ctx, c.xGoogHeader)
+	opts = append(c.CallOptions.ListEvents[0:len(c.CallOptions.ListEvents):len(c.CallOptions.ListEvents)], opts...)
 	it := &ErrorEventIterator{}
 	it.InternalFetch = func(pageSize int, pageToken string) ([]*clouderrorreportingpb.ErrorEvent, string, error) {
 		var resp *clouderrorreportingpb.ListEventsResponse
@@ -189,11 +184,11 @@ func (c *ErrorStatsClient) ListEvents(ctx context.Context, req *clouderrorreport
 		} else {
 			req.PageSize = int32(pageSize)
 		}
-		err := gax.Invoke(ctx, func(ctx context.Context) error {
+		err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 			var err error
-			resp, err = c.errorStatsClient.ListEvents(ctx, req)
+			resp, err = c.errorStatsClient.ListEvents(ctx, req, settings.GRPC...)
 			return err
-		}, c.CallOptions.ListEvents...)
+		}, opts...)
 		if err != nil {
 			return nil, "", err
 		}
@@ -212,15 +207,15 @@ func (c *ErrorStatsClient) ListEvents(ctx context.Context, req *clouderrorreport
 }
 
 // DeleteEvents deletes all error events of a given project.
-func (c *ErrorStatsClient) DeleteEvents(ctx context.Context, req *clouderrorreportingpb.DeleteEventsRequest) (*clouderrorreportingpb.DeleteEventsResponse, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+func (c *ErrorStatsClient) DeleteEvents(ctx context.Context, req *clouderrorreportingpb.DeleteEventsRequest, opts ...gax.CallOption) (*clouderrorreportingpb.DeleteEventsResponse, error) {
+	ctx = insertXGoog(ctx, c.xGoogHeader)
+	opts = append(c.CallOptions.DeleteEvents[0:len(c.CallOptions.DeleteEvents):len(c.CallOptions.DeleteEvents)], opts...)
 	var resp *clouderrorreportingpb.DeleteEventsResponse
-	err := gax.Invoke(ctx, func(ctx context.Context) error {
+	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.errorStatsClient.DeleteEvents(ctx, req)
+		resp, err = c.errorStatsClient.DeleteEvents(ctx, req, settings.GRPC...)
 		return err
-	}, c.CallOptions.DeleteEvents...)
+	}, opts...)
 	if err != nil {
 		return nil, err
 	}

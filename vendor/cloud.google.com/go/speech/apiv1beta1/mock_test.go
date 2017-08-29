@@ -1,4 +1,4 @@
-// Copyright 2016, Google Inc. All rights reserved.
+// Copyright 2017, Google Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,10 +23,12 @@ import (
 
 import (
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/golang/protobuf/proto"
@@ -36,6 +38,8 @@ import (
 	status "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	gstatus "google.golang.org/grpc/status"
 )
 
 var _ = io.EOF
@@ -43,6 +47,11 @@ var _ = ptypes.MarshalAny
 var _ status.Status
 
 type mockSpeechServer struct {
+	// Embed for forward compatibility.
+	// Tests will keep working if more methods are added
+	// in the future.
+	speechpb.SpeechServer
+
 	reqs []proto.Message
 
 	// If set, all calls return this error.
@@ -52,7 +61,11 @@ type mockSpeechServer struct {
 	resps []proto.Message
 }
 
-func (s *mockSpeechServer) SyncRecognize(_ context.Context, req *speechpb.SyncRecognizeRequest) (*speechpb.SyncRecognizeResponse, error) {
+func (s *mockSpeechServer) SyncRecognize(ctx context.Context, req *speechpb.SyncRecognizeRequest) (*speechpb.SyncRecognizeResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
@@ -60,7 +73,11 @@ func (s *mockSpeechServer) SyncRecognize(_ context.Context, req *speechpb.SyncRe
 	return s.resps[0].(*speechpb.SyncRecognizeResponse), nil
 }
 
-func (s *mockSpeechServer) AsyncRecognize(_ context.Context, req *speechpb.AsyncRecognizeRequest) (*longrunningpb.Operation, error) {
+func (s *mockSpeechServer) AsyncRecognize(ctx context.Context, req *speechpb.AsyncRecognizeRequest) (*longrunningpb.Operation, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
@@ -69,6 +86,10 @@ func (s *mockSpeechServer) AsyncRecognize(_ context.Context, req *speechpb.Async
 }
 
 func (s *mockSpeechServer) StreamingRecognize(stream speechpb.Speech_StreamingRecognizeServer) error {
+	md, _ := metadata.FromIncomingContext(stream.Context())
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	for {
 		if req, err := stream.Recv(); err == io.EOF {
 			break
@@ -126,8 +147,18 @@ func TestSpeechSyncRecognize(t *testing.T) {
 
 	mockSpeech.resps = append(mockSpeech.resps[:0], expectedResponse)
 
-	var config *speechpb.RecognitionConfig = &speechpb.RecognitionConfig{}
-	var audio *speechpb.RecognitionAudio = &speechpb.RecognitionAudio{}
+	var encoding speechpb.RecognitionConfig_AudioEncoding = speechpb.RecognitionConfig_FLAC
+	var sampleRate int32 = 44100
+	var config = &speechpb.RecognitionConfig{
+		Encoding:   encoding,
+		SampleRate: sampleRate,
+	}
+	var uri string = "gs://bucket_name/file_name.flac"
+	var audio = &speechpb.RecognitionAudio{
+		AudioSource: &speechpb.RecognitionAudio_Uri{
+			Uri: uri,
+		},
+	}
 	var request = &speechpb.SyncRecognizeRequest{
 		Config: config,
 		Audio:  audio,
@@ -154,11 +185,21 @@ func TestSpeechSyncRecognize(t *testing.T) {
 }
 
 func TestSpeechSyncRecognizeError(t *testing.T) {
-	errCode := codes.Internal
-	mockSpeech.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockSpeech.err = gstatus.Error(errCode, "test error")
 
-	var config *speechpb.RecognitionConfig = &speechpb.RecognitionConfig{}
-	var audio *speechpb.RecognitionAudio = &speechpb.RecognitionAudio{}
+	var encoding speechpb.RecognitionConfig_AudioEncoding = speechpb.RecognitionConfig_FLAC
+	var sampleRate int32 = 44100
+	var config = &speechpb.RecognitionConfig{
+		Encoding:   encoding,
+		SampleRate: sampleRate,
+	}
+	var uri string = "gs://bucket_name/file_name.flac"
+	var audio = &speechpb.RecognitionAudio{
+		AudioSource: &speechpb.RecognitionAudio_Uri{
+			Uri: uri,
+		},
+	}
 	var request = &speechpb.SyncRecognizeRequest{
 		Config: config,
 		Audio:  audio,
@@ -171,7 +212,9 @@ func TestSpeechSyncRecognizeError(t *testing.T) {
 
 	resp, err := c.SyncRecognize(context.Background(), request)
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 	_ = resp
@@ -192,8 +235,18 @@ func TestSpeechAsyncRecognize(t *testing.T) {
 		Result: &longrunningpb.Operation_Response{Response: any},
 	})
 
-	var config *speechpb.RecognitionConfig = &speechpb.RecognitionConfig{}
-	var audio *speechpb.RecognitionAudio = &speechpb.RecognitionAudio{}
+	var encoding speechpb.RecognitionConfig_AudioEncoding = speechpb.RecognitionConfig_FLAC
+	var sampleRate int32 = 44100
+	var config = &speechpb.RecognitionConfig{
+		Encoding:   encoding,
+		SampleRate: sampleRate,
+	}
+	var uri string = "gs://bucket_name/file_name.flac"
+	var audio = &speechpb.RecognitionAudio{
+		AudioSource: &speechpb.RecognitionAudio_Uri{
+			Uri: uri,
+		},
+	}
 	var request = &speechpb.AsyncRecognizeRequest{
 		Config: config,
 		Audio:  audio,
@@ -224,7 +277,7 @@ func TestSpeechAsyncRecognize(t *testing.T) {
 }
 
 func TestSpeechAsyncRecognizeError(t *testing.T) {
-	errCode := codes.Internal
+	errCode := codes.PermissionDenied
 	mockSpeech.err = nil
 	mockSpeech.resps = append(mockSpeech.resps[:0], &longrunningpb.Operation{
 		Name: "longrunning-test",
@@ -237,8 +290,18 @@ func TestSpeechAsyncRecognizeError(t *testing.T) {
 		},
 	})
 
-	var config *speechpb.RecognitionConfig = &speechpb.RecognitionConfig{}
-	var audio *speechpb.RecognitionAudio = &speechpb.RecognitionAudio{}
+	var encoding speechpb.RecognitionConfig_AudioEncoding = speechpb.RecognitionConfig_FLAC
+	var sampleRate int32 = 44100
+	var config = &speechpb.RecognitionConfig{
+		Encoding:   encoding,
+		SampleRate: sampleRate,
+	}
+	var uri string = "gs://bucket_name/file_name.flac"
+	var audio = &speechpb.RecognitionAudio{
+		AudioSource: &speechpb.RecognitionAudio_Uri{
+			Uri: uri,
+		},
+	}
 	var request = &speechpb.AsyncRecognizeRequest{
 		Config: config,
 		Audio:  audio,
@@ -255,7 +318,9 @@ func TestSpeechAsyncRecognizeError(t *testing.T) {
 	}
 	resp, err := respLRO.Wait(context.Background())
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 	_ = resp
@@ -304,8 +369,8 @@ func TestSpeechStreamingRecognize(t *testing.T) {
 }
 
 func TestSpeechStreamingRecognizeError(t *testing.T) {
-	errCode := codes.Internal
-	mockSpeech.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockSpeech.err = gstatus.Error(errCode, "test error")
 
 	var request *speechpb.StreamingRecognizeRequest = &speechpb.StreamingRecognizeRequest{}
 
@@ -326,7 +391,9 @@ func TestSpeechStreamingRecognizeError(t *testing.T) {
 	}
 	resp, err := stream.Recv()
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 	_ = resp

@@ -15,7 +15,14 @@
 package controller
 
 import (
+	"bytes"
+	"errors"
+	"fmt"
+	"strconv"
 	"testing"
+
+	"golang.org/x/net/context"
+	"golang.org/x/oauth2"
 
 	cd "google.golang.org/api/clouddebugger/v2"
 	"google.golang.org/api/googleapi"
@@ -89,7 +96,7 @@ type mockService struct {
 	registerCallsSeen int
 }
 
-func (s *mockService) Register(req *cd.RegisterDebuggeeRequest) (*cd.RegisterDebuggeeResponse, error) {
+func (s *mockService) Register(ctx context.Context, req *cd.RegisterDebuggeeRequest) (*cd.RegisterDebuggeeResponse, error) {
 	s.registerCallsSeen++
 	if req.Debuggee == nil {
 		s.t.Errorf("missing debuggee")
@@ -112,7 +119,7 @@ func (s *mockService) Register(req *cd.RegisterDebuggeeRequest) (*cd.RegisterDeb
 	}, nil
 }
 
-func (s *mockService) Update(id, breakpointID string, req *cd.UpdateActiveBreakpointRequest) (*cd.UpdateActiveBreakpointResponse, error) {
+func (s *mockService) Update(ctx context.Context, id, breakpointID string, req *cd.UpdateActiveBreakpointRequest) (*cd.UpdateActiveBreakpointResponse, error) {
 	if id != testDebuggeeID {
 		s.t.Errorf("got debuggee ID %s want %s", id, testDebuggeeID)
 	}
@@ -125,7 +132,7 @@ func (s *mockService) Update(id, breakpointID string, req *cd.UpdateActiveBreakp
 	return nil, nil
 }
 
-func (s *mockService) List(id, waitToken string) (*cd.ListActiveBreakpointsResponse, error) {
+func (s *mockService) List(ctx context.Context, id, waitToken string) (*cd.ListActiveBreakpointsResponse, error) {
 	if id != testDebuggeeID {
 		s.t.Errorf("got debuggee ID %s want %s", id, testDebuggeeID)
 	}
@@ -154,46 +161,50 @@ func TestDebugletControllerClientLibrary(t *testing.T) {
 		err  error
 	)
 	m = &mockService{t: t}
-	newService = func(_ string) (serviceInterface, error) { return m, nil }
+	newService = func(context.Context, oauth2.TokenSource) (serviceInterface, error) { return m, nil }
 	opts := Options{
 		ProjectNumber: "5",
 		ProjectID:     "p1",
 		AppModule:     "mod1",
 		AppVersion:    "v1",
 	}
-	if c, err = NewController(opts); err != nil {
+	ctx := context.Background()
+	if c, err = NewController(ctx, opts); err != nil {
 		t.Fatal("Initializing Controller client:", err)
 	}
-	if list, err = c.List(); err != nil {
+	if err := validateLabels(c, opts); err != nil {
+		t.Fatalf("Invalid labels:\n%v", err)
+	}
+	if list, err = c.List(ctx); err != nil {
 		t.Fatal("List:", err)
 	}
 	if m.registerCallsSeen != 1 {
 		t.Errorf("saw %d Register calls, want 1", m.registerCallsSeen)
 	}
-	if list, err = c.List(); err != nil {
+	if list, err = c.List(ctx); err != nil {
 		t.Fatal("List:", err)
 	}
 	if len(list.Breakpoints) != 1 {
 		t.Fatalf("got %d breakpoints, want 1", len(list.Breakpoints))
 	}
-	if err = c.Update(list.Breakpoints[0].Id, &cd.Breakpoint{Id: testBreakpointID, IsFinalState: true}); err != nil {
+	if err = c.Update(ctx, list.Breakpoints[0].Id, &cd.Breakpoint{Id: testBreakpointID, IsFinalState: true}); err != nil {
 		t.Fatal("Update:", err)
 	}
-	if list, err = c.List(); err != nil {
+	if list, err = c.List(ctx); err != nil {
 		t.Fatal("List:", err)
 	}
 	if m.registerCallsSeen != 1 {
 		t.Errorf("saw %d Register calls, want 1", m.registerCallsSeen)
 	}
 	// The next List call produces an error that should cause a Register call.
-	if list, err = c.List(); err == nil {
+	if list, err = c.List(ctx); err == nil {
 		t.Fatal("List should have returned an error")
 	}
 	if m.registerCallsSeen != 2 {
 		t.Errorf("saw %d Register calls, want 2", m.registerCallsSeen)
 	}
 	// The next List call produces an error that should not cause a Register call.
-	if list, err = c.List(); err == nil {
+	if list, err = c.List(ctx); err == nil {
 		t.Fatal("List should have returned an error")
 	}
 	if m.registerCallsSeen != 2 {
@@ -202,6 +213,35 @@ func TestDebugletControllerClientLibrary(t *testing.T) {
 	if m.listCallsSeen != 5 {
 		t.Errorf("saw %d list calls, want 5", m.listCallsSeen)
 	}
+}
+
+func validateLabels(c *Controller, o Options) error {
+	errMsg := new(bytes.Buffer)
+	if m, ok := c.labels["module"]; ok {
+		if m != o.AppModule {
+			errMsg.WriteString(fmt.Sprintf("label module: want %s, got %s\n", o.AppModule, m))
+		}
+	} else {
+		errMsg.WriteString("Missing \"module\" label\n")
+	}
+	if v, ok := c.labels["version"]; ok {
+		if v != o.AppVersion {
+			errMsg.WriteString(fmt.Sprintf("label version: want %s, got %s\n", o.AppVersion, v))
+		}
+	} else {
+		errMsg.WriteString("Missing \"version\" label\n")
+	}
+	if mv, ok := c.labels["minorversion"]; ok {
+		if _, err := strconv.Atoi(mv); err != nil {
+			errMsg.WriteString(fmt.Sprintln("label minorversion: not a numeric string:", mv))
+		}
+	} else {
+		errMsg.WriteString("Missing \"minorversion\" label\n")
+	}
+	if errMsg.Len() != 0 {
+		return errors.New(errMsg.String())
+	}
+	return nil
 }
 
 func TestIsAbortedError(t *testing.T) {

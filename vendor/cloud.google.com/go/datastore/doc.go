@@ -42,6 +42,7 @@ Valid value types are:
   - GeoPoint,
   - time.Time (stored with microsecond precision),
   - structs whose fields are all valid value types,
+  - pointers to structs whose fields are all valid value types,
   - slices of any of the above.
 
 Slices of structs are valid, as are structs that contain slices.
@@ -151,6 +152,39 @@ Example code:
 		I int `datastore:"-"`
 		J int `datastore:",noindex" json:"j"`
 	}
+
+
+Key Field
+
+If the struct contains a *datastore.Key field tagged with the name "__key__",
+its value will be ignored on Put. When reading the Entity back into the Go struct,
+the field will be populated with the *datastore.Key value used to query for
+the Entity.
+
+Example code:
+
+	type MyEntity struct {
+		A int
+		K *datastore.Key `datastore:"__key__"`
+	}
+
+	k := datastore.NameKey("Entity", "stringID", nil)
+	e := MyEntity{A: 12}
+	k, err = dsClient.Put(ctx, k, e)
+	if err != nil {
+		// Handle error.
+	}
+
+	var entities []MyEntity
+	q := datastore.NewQuery("Entity").Filter("A =", 12).Limit(1)
+	_, err := dsClient.GetAll(ctx, q, &entities)
+	if err != nil {
+		// Handle error
+	}
+
+	log.Println(entities[0])
+	// Prints {12 /Entity,stringID}
+
 
 
 Structured Properties
@@ -265,7 +299,7 @@ Example code:
 	func (x *CustomPropsExample) Save() ([]datastore.Property, error) {
 		// Validate the Sum field.
 		if x.Sum != x.I + x.J {
-			return errors.New("CustomPropsExample has inconsistent sum")
+			return nil, errors.New("CustomPropsExample has inconsistent sum")
 		}
 		// Save I and J as usual. The code below is equivalent to calling
 		// "return datastore.SaveStruct(x)", but is done manually for
@@ -279,11 +313,45 @@ Example code:
 				Name:  "J",
 				Value: int64(x.J),
 			},
-		}
+		}, nil
 	}
 
 The *PropertyList type implements PropertyLoadSaver, and can therefore hold an
 arbitrary entity's contents.
+
+The KeyLoader Interface
+
+If a type implements the PropertyLoadSaver interface, it may
+also want to implement the KeyLoader interface.
+The KeyLoader interface exists to allow implementations of PropertyLoadSaver
+to also load an Entity's Key into the Go type. This type may be a struct
+pointer, but it does not have to be. The datastore package will call LoadKey
+when getting the entity's contents, after calling Load.
+
+Example code:
+
+	type WithKeyExample struct {
+		I int
+		Key   *datastore.Key
+	}
+
+	func (x *WithKeyExample) LoadKey(k *datastore.Key) error {
+		x.Key = k
+		return nil
+	}
+
+	func (x *WithKeyExample) Load(ps []datastore.Property) error {
+		// Load I as usual.
+		return datastore.LoadStruct(x, ps)
+	}
+
+	func (x *WithKeyExample) Save() ([]datastore.Property, error) {
+		// Save I as usual.
+		return datastore.SaveStruct(x)
+	}
+
+To load a Key into a struct which does not implement the PropertyLoadSaver
+interface, see the "Key Field" section above.
 
 
 Queries
@@ -321,7 +389,7 @@ Example code:
 		q := datastore.NewQuery("Widget").
 			Filter("Price <", 1000).
 			Order("-Price")
-		for t := dsClient.Run(ctx, q); ; {
+		for t := client.Run(ctx, q); ; {
 			var x Widget
 			key, err := t.Next(&x)
 			if err == iterator.Done {
@@ -348,7 +416,7 @@ Example code:
 	func incCount(ctx context.Context, client *datastore.Client) {
 		var count int
 		key := datastore.NameKey("Counter", "singleton", nil)
-		_, err := dsClient.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
+		_, err := client.RunInTransaction(ctx, func(tx *datastore.Transaction) error {
 			var x Counter
 			if err := tx.Get(key, &x); err != nil && err != datastore.ErrNoSuchEntity {
 				return err
@@ -376,6 +444,11 @@ directed to the emulator instead of the production Datastore service.
 
 To install and set up the emulator and its environment variables, see the documentation
 at https://cloud.google.com/datastore/docs/tools/datastore-emulator.
+
+Authentication
+
+See examples of authorization and authentication at
+https://godoc.org/cloud.google.com/go#pkg-examples.
 
 */
 package datastore // import "cloud.google.com/go/datastore"

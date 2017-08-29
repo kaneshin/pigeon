@@ -1,4 +1,4 @@
-// Copyright 2016, Google Inc. All rights reserved.
+// Copyright 2017, Google Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,17 +17,19 @@
 package logging
 
 import (
-	google_protobuf "github.com/golang/protobuf/ptypes/empty"
+	emptypb "github.com/golang/protobuf/ptypes/empty"
 	monitoredrespb "google.golang.org/genproto/googleapis/api/monitoredres"
 	loggingpb "google.golang.org/genproto/googleapis/logging/v2"
 )
 
 import (
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/golang/protobuf/proto"
@@ -37,6 +39,8 @@ import (
 	status "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	gstatus "google.golang.org/grpc/status"
 )
 
 var _ = io.EOF
@@ -44,6 +48,11 @@ var _ = ptypes.MarshalAny
 var _ status.Status
 
 type mockLoggingServer struct {
+	// Embed for forward compatibility.
+	// Tests will keep working if more methods are added
+	// in the future.
+	loggingpb.LoggingServiceV2Server
+
 	reqs []proto.Message
 
 	// If set, all calls return this error.
@@ -53,15 +62,23 @@ type mockLoggingServer struct {
 	resps []proto.Message
 }
 
-func (s *mockLoggingServer) DeleteLog(_ context.Context, req *loggingpb.DeleteLogRequest) (*google_protobuf.Empty, error) {
+func (s *mockLoggingServer) DeleteLog(ctx context.Context, req *loggingpb.DeleteLogRequest) (*emptypb.Empty, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
 	}
-	return s.resps[0].(*google_protobuf.Empty), nil
+	return s.resps[0].(*emptypb.Empty), nil
 }
 
-func (s *mockLoggingServer) WriteLogEntries(_ context.Context, req *loggingpb.WriteLogEntriesRequest) (*loggingpb.WriteLogEntriesResponse, error) {
+func (s *mockLoggingServer) WriteLogEntries(ctx context.Context, req *loggingpb.WriteLogEntriesRequest) (*loggingpb.WriteLogEntriesResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
@@ -69,7 +86,11 @@ func (s *mockLoggingServer) WriteLogEntries(_ context.Context, req *loggingpb.Wr
 	return s.resps[0].(*loggingpb.WriteLogEntriesResponse), nil
 }
 
-func (s *mockLoggingServer) ListLogEntries(_ context.Context, req *loggingpb.ListLogEntriesRequest) (*loggingpb.ListLogEntriesResponse, error) {
+func (s *mockLoggingServer) ListLogEntries(ctx context.Context, req *loggingpb.ListLogEntriesRequest) (*loggingpb.ListLogEntriesResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
@@ -77,7 +98,11 @@ func (s *mockLoggingServer) ListLogEntries(_ context.Context, req *loggingpb.Lis
 	return s.resps[0].(*loggingpb.ListLogEntriesResponse), nil
 }
 
-func (s *mockLoggingServer) ListMonitoredResourceDescriptors(_ context.Context, req *loggingpb.ListMonitoredResourceDescriptorsRequest) (*loggingpb.ListMonitoredResourceDescriptorsResponse, error) {
+func (s *mockLoggingServer) ListMonitoredResourceDescriptors(ctx context.Context, req *loggingpb.ListMonitoredResourceDescriptorsRequest) (*loggingpb.ListMonitoredResourceDescriptorsResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
@@ -85,7 +110,24 @@ func (s *mockLoggingServer) ListMonitoredResourceDescriptors(_ context.Context, 
 	return s.resps[0].(*loggingpb.ListMonitoredResourceDescriptorsResponse), nil
 }
 
+func (s *mockLoggingServer) ListLogs(ctx context.Context, req *loggingpb.ListLogsRequest) (*loggingpb.ListLogsResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
+	s.reqs = append(s.reqs, req)
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.resps[0].(*loggingpb.ListLogsResponse), nil
+}
+
 type mockConfigServer struct {
+	// Embed for forward compatibility.
+	// Tests will keep working if more methods are added
+	// in the future.
+	loggingpb.ConfigServiceV2Server
+
 	reqs []proto.Message
 
 	// If set, all calls return this error.
@@ -95,7 +137,11 @@ type mockConfigServer struct {
 	resps []proto.Message
 }
 
-func (s *mockConfigServer) ListSinks(_ context.Context, req *loggingpb.ListSinksRequest) (*loggingpb.ListSinksResponse, error) {
+func (s *mockConfigServer) ListSinks(ctx context.Context, req *loggingpb.ListSinksRequest) (*loggingpb.ListSinksResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
@@ -103,7 +149,11 @@ func (s *mockConfigServer) ListSinks(_ context.Context, req *loggingpb.ListSinks
 	return s.resps[0].(*loggingpb.ListSinksResponse), nil
 }
 
-func (s *mockConfigServer) GetSink(_ context.Context, req *loggingpb.GetSinkRequest) (*loggingpb.LogSink, error) {
+func (s *mockConfigServer) GetSink(ctx context.Context, req *loggingpb.GetSinkRequest) (*loggingpb.LogSink, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
@@ -111,7 +161,11 @@ func (s *mockConfigServer) GetSink(_ context.Context, req *loggingpb.GetSinkRequ
 	return s.resps[0].(*loggingpb.LogSink), nil
 }
 
-func (s *mockConfigServer) CreateSink(_ context.Context, req *loggingpb.CreateSinkRequest) (*loggingpb.LogSink, error) {
+func (s *mockConfigServer) CreateSink(ctx context.Context, req *loggingpb.CreateSinkRequest) (*loggingpb.LogSink, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
@@ -119,7 +173,11 @@ func (s *mockConfigServer) CreateSink(_ context.Context, req *loggingpb.CreateSi
 	return s.resps[0].(*loggingpb.LogSink), nil
 }
 
-func (s *mockConfigServer) UpdateSink(_ context.Context, req *loggingpb.UpdateSinkRequest) (*loggingpb.LogSink, error) {
+func (s *mockConfigServer) UpdateSink(ctx context.Context, req *loggingpb.UpdateSinkRequest) (*loggingpb.LogSink, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
@@ -127,15 +185,24 @@ func (s *mockConfigServer) UpdateSink(_ context.Context, req *loggingpb.UpdateSi
 	return s.resps[0].(*loggingpb.LogSink), nil
 }
 
-func (s *mockConfigServer) DeleteSink(_ context.Context, req *loggingpb.DeleteSinkRequest) (*google_protobuf.Empty, error) {
+func (s *mockConfigServer) DeleteSink(ctx context.Context, req *loggingpb.DeleteSinkRequest) (*emptypb.Empty, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
 	}
-	return s.resps[0].(*google_protobuf.Empty), nil
+	return s.resps[0].(*emptypb.Empty), nil
 }
 
 type mockMetricsServer struct {
+	// Embed for forward compatibility.
+	// Tests will keep working if more methods are added
+	// in the future.
+	loggingpb.MetricsServiceV2Server
+
 	reqs []proto.Message
 
 	// If set, all calls return this error.
@@ -145,7 +212,11 @@ type mockMetricsServer struct {
 	resps []proto.Message
 }
 
-func (s *mockMetricsServer) ListLogMetrics(_ context.Context, req *loggingpb.ListLogMetricsRequest) (*loggingpb.ListLogMetricsResponse, error) {
+func (s *mockMetricsServer) ListLogMetrics(ctx context.Context, req *loggingpb.ListLogMetricsRequest) (*loggingpb.ListLogMetricsResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
@@ -153,7 +224,11 @@ func (s *mockMetricsServer) ListLogMetrics(_ context.Context, req *loggingpb.Lis
 	return s.resps[0].(*loggingpb.ListLogMetricsResponse), nil
 }
 
-func (s *mockMetricsServer) GetLogMetric(_ context.Context, req *loggingpb.GetLogMetricRequest) (*loggingpb.LogMetric, error) {
+func (s *mockMetricsServer) GetLogMetric(ctx context.Context, req *loggingpb.GetLogMetricRequest) (*loggingpb.LogMetric, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
@@ -161,7 +236,11 @@ func (s *mockMetricsServer) GetLogMetric(_ context.Context, req *loggingpb.GetLo
 	return s.resps[0].(*loggingpb.LogMetric), nil
 }
 
-func (s *mockMetricsServer) CreateLogMetric(_ context.Context, req *loggingpb.CreateLogMetricRequest) (*loggingpb.LogMetric, error) {
+func (s *mockMetricsServer) CreateLogMetric(ctx context.Context, req *loggingpb.CreateLogMetricRequest) (*loggingpb.LogMetric, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
@@ -169,7 +248,11 @@ func (s *mockMetricsServer) CreateLogMetric(_ context.Context, req *loggingpb.Cr
 	return s.resps[0].(*loggingpb.LogMetric), nil
 }
 
-func (s *mockMetricsServer) UpdateLogMetric(_ context.Context, req *loggingpb.UpdateLogMetricRequest) (*loggingpb.LogMetric, error) {
+func (s *mockMetricsServer) UpdateLogMetric(ctx context.Context, req *loggingpb.UpdateLogMetricRequest) (*loggingpb.LogMetric, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
@@ -177,12 +260,16 @@ func (s *mockMetricsServer) UpdateLogMetric(_ context.Context, req *loggingpb.Up
 	return s.resps[0].(*loggingpb.LogMetric), nil
 }
 
-func (s *mockMetricsServer) DeleteLogMetric(_ context.Context, req *loggingpb.DeleteLogMetricRequest) (*google_protobuf.Empty, error) {
+func (s *mockMetricsServer) DeleteLogMetric(ctx context.Context, req *loggingpb.DeleteLogMetricRequest) (*emptypb.Empty, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
 	}
-	return s.resps[0].(*google_protobuf.Empty), nil
+	return s.resps[0].(*emptypb.Empty), nil
 }
 
 // clientOpt is the option tests should use to connect to the test server.
@@ -219,14 +306,14 @@ func TestMain(m *testing.M) {
 }
 
 func TestLoggingServiceV2DeleteLog(t *testing.T) {
-	var expectedResponse *google_protobuf.Empty = &google_protobuf.Empty{}
+	var expectedResponse *emptypb.Empty = &emptypb.Empty{}
 
 	mockLogging.err = nil
 	mockLogging.reqs = nil
 
 	mockLogging.resps = append(mockLogging.resps[:0], expectedResponse)
 
-	var formattedLogName string = LoggingLogPath("[PROJECT]", "[LOG]")
+	var formattedLogName string = LogPath("[PROJECT]", "[LOG]")
 	var request = &loggingpb.DeleteLogRequest{
 		LogName: formattedLogName,
 	}
@@ -249,10 +336,10 @@ func TestLoggingServiceV2DeleteLog(t *testing.T) {
 }
 
 func TestLoggingServiceV2DeleteLogError(t *testing.T) {
-	errCode := codes.Internal
-	mockLogging.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockLogging.err = gstatus.Error(errCode, "test error")
 
-	var formattedLogName string = LoggingLogPath("[PROJECT]", "[LOG]")
+	var formattedLogName string = LogPath("[PROJECT]", "[LOG]")
 	var request = &loggingpb.DeleteLogRequest{
 		LogName: formattedLogName,
 	}
@@ -264,7 +351,9 @@ func TestLoggingServiceV2DeleteLogError(t *testing.T) {
 
 	err = c.DeleteLog(context.Background(), request)
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 }
@@ -302,8 +391,8 @@ func TestLoggingServiceV2WriteLogEntries(t *testing.T) {
 }
 
 func TestLoggingServiceV2WriteLogEntriesError(t *testing.T) {
-	errCode := codes.Internal
-	mockLogging.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockLogging.err = gstatus.Error(errCode, "test error")
 
 	var entries []*loggingpb.LogEntry = nil
 	var request = &loggingpb.WriteLogEntriesRequest{
@@ -317,7 +406,9 @@ func TestLoggingServiceV2WriteLogEntriesError(t *testing.T) {
 
 	resp, err := c.WriteLogEntries(context.Background(), request)
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 	_ = resp
@@ -372,8 +463,8 @@ func TestLoggingServiceV2ListLogEntries(t *testing.T) {
 }
 
 func TestLoggingServiceV2ListLogEntriesError(t *testing.T) {
-	errCode := codes.Internal
-	mockLogging.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockLogging.err = gstatus.Error(errCode, "test error")
 
 	var resourceNames []string = nil
 	var request = &loggingpb.ListLogEntriesRequest{
@@ -387,7 +478,9 @@ func TestLoggingServiceV2ListLogEntriesError(t *testing.T) {
 
 	resp, err := c.ListLogEntries(context.Background(), request).Next()
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 	_ = resp
@@ -439,8 +532,8 @@ func TestLoggingServiceV2ListMonitoredResourceDescriptors(t *testing.T) {
 }
 
 func TestLoggingServiceV2ListMonitoredResourceDescriptorsError(t *testing.T) {
-	errCode := codes.Internal
-	mockLogging.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockLogging.err = gstatus.Error(errCode, "test error")
 
 	var request *loggingpb.ListMonitoredResourceDescriptorsRequest = &loggingpb.ListMonitoredResourceDescriptorsRequest{}
 
@@ -451,7 +544,81 @@ func TestLoggingServiceV2ListMonitoredResourceDescriptorsError(t *testing.T) {
 
 	resp, err := c.ListMonitoredResourceDescriptors(context.Background(), request).Next()
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
+		t.Errorf("got error code %q, want %q", c, errCode)
+	}
+	_ = resp
+}
+func TestLoggingServiceV2ListLogs(t *testing.T) {
+	var nextPageToken string = ""
+	var logNamesElement string = "logNamesElement-1079688374"
+	var logNames = []string{logNamesElement}
+	var expectedResponse = &loggingpb.ListLogsResponse{
+		NextPageToken: nextPageToken,
+		LogNames:      logNames,
+	}
+
+	mockLogging.err = nil
+	mockLogging.reqs = nil
+
+	mockLogging.resps = append(mockLogging.resps[:0], expectedResponse)
+
+	var formattedParent string = ProjectPath("[PROJECT]")
+	var request = &loggingpb.ListLogsRequest{
+		Parent: formattedParent,
+	}
+
+	c, err := NewClient(context.Background(), clientOpt)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := c.ListLogs(context.Background(), request).Next()
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if want, got := request, mockLogging.reqs[0]; !proto.Equal(want, got) {
+		t.Errorf("wrong request %q, want %q", got, want)
+	}
+
+	want := (interface{})(expectedResponse.LogNames[0])
+	got := (interface{})(resp)
+	var ok bool
+
+	switch want := (want).(type) {
+	case proto.Message:
+		ok = proto.Equal(want, got.(proto.Message))
+	default:
+		ok = want == got
+	}
+	if !ok {
+		t.Errorf("wrong response %q, want %q)", got, want)
+	}
+}
+
+func TestLoggingServiceV2ListLogsError(t *testing.T) {
+	errCode := codes.PermissionDenied
+	mockLogging.err = gstatus.Error(errCode, "test error")
+
+	var formattedParent string = ProjectPath("[PROJECT]")
+	var request = &loggingpb.ListLogsRequest{
+		Parent: formattedParent,
+	}
+
+	c, err := NewClient(context.Background(), clientOpt)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := c.ListLogs(context.Background(), request).Next()
+
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 	_ = resp
@@ -470,7 +637,7 @@ func TestConfigServiceV2ListSinks(t *testing.T) {
 
 	mockConfig.resps = append(mockConfig.resps[:0], expectedResponse)
 
-	var formattedParent string = ConfigParentPath("[PROJECT]")
+	var formattedParent string = ConfigProjectPath("[PROJECT]")
 	var request = &loggingpb.ListSinksRequest{
 		Parent: formattedParent,
 	}
@@ -506,10 +673,10 @@ func TestConfigServiceV2ListSinks(t *testing.T) {
 }
 
 func TestConfigServiceV2ListSinksError(t *testing.T) {
-	errCode := codes.Internal
-	mockConfig.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockConfig.err = gstatus.Error(errCode, "test error")
 
-	var formattedParent string = ConfigParentPath("[PROJECT]")
+	var formattedParent string = ConfigProjectPath("[PROJECT]")
 	var request = &loggingpb.ListSinksRequest{
 		Parent: formattedParent,
 	}
@@ -521,7 +688,9 @@ func TestConfigServiceV2ListSinksError(t *testing.T) {
 
 	resp, err := c.ListSinks(context.Background(), request).Next()
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 	_ = resp
@@ -531,11 +700,13 @@ func TestConfigServiceV2GetSink(t *testing.T) {
 	var destination string = "destination-1429847026"
 	var filter string = "filter-1274492040"
 	var writerIdentity string = "writerIdentity775638794"
+	var includeChildren bool = true
 	var expectedResponse = &loggingpb.LogSink{
-		Name:           name,
-		Destination:    destination,
-		Filter:         filter,
-		WriterIdentity: writerIdentity,
+		Name:            name,
+		Destination:     destination,
+		Filter:          filter,
+		WriterIdentity:  writerIdentity,
+		IncludeChildren: includeChildren,
 	}
 
 	mockConfig.err = nil
@@ -569,8 +740,8 @@ func TestConfigServiceV2GetSink(t *testing.T) {
 }
 
 func TestConfigServiceV2GetSinkError(t *testing.T) {
-	errCode := codes.Internal
-	mockConfig.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockConfig.err = gstatus.Error(errCode, "test error")
 
 	var formattedSinkName string = ConfigSinkPath("[PROJECT]", "[SINK]")
 	var request = &loggingpb.GetSinkRequest{
@@ -584,7 +755,9 @@ func TestConfigServiceV2GetSinkError(t *testing.T) {
 
 	resp, err := c.GetSink(context.Background(), request)
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 	_ = resp
@@ -594,11 +767,13 @@ func TestConfigServiceV2CreateSink(t *testing.T) {
 	var destination string = "destination-1429847026"
 	var filter string = "filter-1274492040"
 	var writerIdentity string = "writerIdentity775638794"
+	var includeChildren bool = true
 	var expectedResponse = &loggingpb.LogSink{
-		Name:           name,
-		Destination:    destination,
-		Filter:         filter,
-		WriterIdentity: writerIdentity,
+		Name:            name,
+		Destination:     destination,
+		Filter:          filter,
+		WriterIdentity:  writerIdentity,
+		IncludeChildren: includeChildren,
 	}
 
 	mockConfig.err = nil
@@ -606,7 +781,7 @@ func TestConfigServiceV2CreateSink(t *testing.T) {
 
 	mockConfig.resps = append(mockConfig.resps[:0], expectedResponse)
 
-	var formattedParent string = ConfigParentPath("[PROJECT]")
+	var formattedParent string = ConfigProjectPath("[PROJECT]")
 	var sink *loggingpb.LogSink = &loggingpb.LogSink{}
 	var request = &loggingpb.CreateSinkRequest{
 		Parent: formattedParent,
@@ -634,10 +809,10 @@ func TestConfigServiceV2CreateSink(t *testing.T) {
 }
 
 func TestConfigServiceV2CreateSinkError(t *testing.T) {
-	errCode := codes.Internal
-	mockConfig.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockConfig.err = gstatus.Error(errCode, "test error")
 
-	var formattedParent string = ConfigParentPath("[PROJECT]")
+	var formattedParent string = ConfigProjectPath("[PROJECT]")
 	var sink *loggingpb.LogSink = &loggingpb.LogSink{}
 	var request = &loggingpb.CreateSinkRequest{
 		Parent: formattedParent,
@@ -651,7 +826,9 @@ func TestConfigServiceV2CreateSinkError(t *testing.T) {
 
 	resp, err := c.CreateSink(context.Background(), request)
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 	_ = resp
@@ -661,11 +838,13 @@ func TestConfigServiceV2UpdateSink(t *testing.T) {
 	var destination string = "destination-1429847026"
 	var filter string = "filter-1274492040"
 	var writerIdentity string = "writerIdentity775638794"
+	var includeChildren bool = true
 	var expectedResponse = &loggingpb.LogSink{
-		Name:           name,
-		Destination:    destination,
-		Filter:         filter,
-		WriterIdentity: writerIdentity,
+		Name:            name,
+		Destination:     destination,
+		Filter:          filter,
+		WriterIdentity:  writerIdentity,
+		IncludeChildren: includeChildren,
 	}
 
 	mockConfig.err = nil
@@ -701,8 +880,8 @@ func TestConfigServiceV2UpdateSink(t *testing.T) {
 }
 
 func TestConfigServiceV2UpdateSinkError(t *testing.T) {
-	errCode := codes.Internal
-	mockConfig.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockConfig.err = gstatus.Error(errCode, "test error")
 
 	var formattedSinkName string = ConfigSinkPath("[PROJECT]", "[SINK]")
 	var sink *loggingpb.LogSink = &loggingpb.LogSink{}
@@ -718,13 +897,15 @@ func TestConfigServiceV2UpdateSinkError(t *testing.T) {
 
 	resp, err := c.UpdateSink(context.Background(), request)
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 	_ = resp
 }
 func TestConfigServiceV2DeleteSink(t *testing.T) {
-	var expectedResponse *google_protobuf.Empty = &google_protobuf.Empty{}
+	var expectedResponse *emptypb.Empty = &emptypb.Empty{}
 
 	mockConfig.err = nil
 	mockConfig.reqs = nil
@@ -754,8 +935,8 @@ func TestConfigServiceV2DeleteSink(t *testing.T) {
 }
 
 func TestConfigServiceV2DeleteSinkError(t *testing.T) {
-	errCode := codes.Internal
-	mockConfig.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockConfig.err = gstatus.Error(errCode, "test error")
 
 	var formattedSinkName string = ConfigSinkPath("[PROJECT]", "[SINK]")
 	var request = &loggingpb.DeleteSinkRequest{
@@ -769,7 +950,9 @@ func TestConfigServiceV2DeleteSinkError(t *testing.T) {
 
 	err = c.DeleteSink(context.Background(), request)
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 }
@@ -787,7 +970,7 @@ func TestMetricsServiceV2ListLogMetrics(t *testing.T) {
 
 	mockMetrics.resps = append(mockMetrics.resps[:0], expectedResponse)
 
-	var formattedParent string = MetricsParentPath("[PROJECT]")
+	var formattedParent string = MetricsProjectPath("[PROJECT]")
 	var request = &loggingpb.ListLogMetricsRequest{
 		Parent: formattedParent,
 	}
@@ -823,10 +1006,10 @@ func TestMetricsServiceV2ListLogMetrics(t *testing.T) {
 }
 
 func TestMetricsServiceV2ListLogMetricsError(t *testing.T) {
-	errCode := codes.Internal
-	mockMetrics.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockMetrics.err = gstatus.Error(errCode, "test error")
 
-	var formattedParent string = MetricsParentPath("[PROJECT]")
+	var formattedParent string = MetricsProjectPath("[PROJECT]")
 	var request = &loggingpb.ListLogMetricsRequest{
 		Parent: formattedParent,
 	}
@@ -838,7 +1021,9 @@ func TestMetricsServiceV2ListLogMetricsError(t *testing.T) {
 
 	resp, err := c.ListLogMetrics(context.Background(), request).Next()
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 	_ = resp
@@ -884,8 +1069,8 @@ func TestMetricsServiceV2GetLogMetric(t *testing.T) {
 }
 
 func TestMetricsServiceV2GetLogMetricError(t *testing.T) {
-	errCode := codes.Internal
-	mockMetrics.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockMetrics.err = gstatus.Error(errCode, "test error")
 
 	var formattedMetricName string = MetricsMetricPath("[PROJECT]", "[METRIC]")
 	var request = &loggingpb.GetLogMetricRequest{
@@ -899,7 +1084,9 @@ func TestMetricsServiceV2GetLogMetricError(t *testing.T) {
 
 	resp, err := c.GetLogMetric(context.Background(), request)
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 	_ = resp
@@ -919,7 +1106,7 @@ func TestMetricsServiceV2CreateLogMetric(t *testing.T) {
 
 	mockMetrics.resps = append(mockMetrics.resps[:0], expectedResponse)
 
-	var formattedParent string = MetricsParentPath("[PROJECT]")
+	var formattedParent string = MetricsProjectPath("[PROJECT]")
 	var metric *loggingpb.LogMetric = &loggingpb.LogMetric{}
 	var request = &loggingpb.CreateLogMetricRequest{
 		Parent: formattedParent,
@@ -947,10 +1134,10 @@ func TestMetricsServiceV2CreateLogMetric(t *testing.T) {
 }
 
 func TestMetricsServiceV2CreateLogMetricError(t *testing.T) {
-	errCode := codes.Internal
-	mockMetrics.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockMetrics.err = gstatus.Error(errCode, "test error")
 
-	var formattedParent string = MetricsParentPath("[PROJECT]")
+	var formattedParent string = MetricsProjectPath("[PROJECT]")
 	var metric *loggingpb.LogMetric = &loggingpb.LogMetric{}
 	var request = &loggingpb.CreateLogMetricRequest{
 		Parent: formattedParent,
@@ -964,7 +1151,9 @@ func TestMetricsServiceV2CreateLogMetricError(t *testing.T) {
 
 	resp, err := c.CreateLogMetric(context.Background(), request)
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 	_ = resp
@@ -1012,8 +1201,8 @@ func TestMetricsServiceV2UpdateLogMetric(t *testing.T) {
 }
 
 func TestMetricsServiceV2UpdateLogMetricError(t *testing.T) {
-	errCode := codes.Internal
-	mockMetrics.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockMetrics.err = gstatus.Error(errCode, "test error")
 
 	var formattedMetricName string = MetricsMetricPath("[PROJECT]", "[METRIC]")
 	var metric *loggingpb.LogMetric = &loggingpb.LogMetric{}
@@ -1029,13 +1218,15 @@ func TestMetricsServiceV2UpdateLogMetricError(t *testing.T) {
 
 	resp, err := c.UpdateLogMetric(context.Background(), request)
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 	_ = resp
 }
 func TestMetricsServiceV2DeleteLogMetric(t *testing.T) {
-	var expectedResponse *google_protobuf.Empty = &google_protobuf.Empty{}
+	var expectedResponse *emptypb.Empty = &emptypb.Empty{}
 
 	mockMetrics.err = nil
 	mockMetrics.reqs = nil
@@ -1065,8 +1256,8 @@ func TestMetricsServiceV2DeleteLogMetric(t *testing.T) {
 }
 
 func TestMetricsServiceV2DeleteLogMetricError(t *testing.T) {
-	errCode := codes.Internal
-	mockMetrics.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockMetrics.err = gstatus.Error(errCode, "test error")
 
 	var formattedMetricName string = MetricsMetricPath("[PROJECT]", "[METRIC]")
 	var request = &loggingpb.DeleteLogMetricRequest{
@@ -1080,7 +1271,9 @@ func TestMetricsServiceV2DeleteLogMetricError(t *testing.T) {
 
 	err = c.DeleteLogMetric(context.Background(), request)
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 }

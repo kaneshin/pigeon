@@ -1,4 +1,4 @@
-// Copyright 2016, Google Inc. All rights reserved.
+// Copyright 2017, Google Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,11 +17,9 @@
 package errorreporting
 
 import (
-	"fmt"
-	"runtime"
-	"strings"
 	"time"
 
+	"cloud.google.com/go/internal/version"
 	gax "github.com/googleapis/gax-go"
 	"golang.org/x/net/context"
 	"google.golang.org/api/option"
@@ -29,7 +27,6 @@ import (
 	clouderrorreportingpb "google.golang.org/genproto/googleapis/devtools/clouderrorreporting/v1beta1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 )
 
 var (
@@ -45,9 +42,7 @@ type ErrorGroupCallOptions struct {
 func defaultErrorGroupClientOptions() []option.ClientOption {
 	return []option.ClientOption{
 		option.WithEndpoint("clouderrorreporting.googleapis.com:443"),
-		option.WithScopes(
-			"https://www.googleapis.com/auth/cloud-platform",
-		),
+		option.WithScopes(DefaultAuthScopes()...),
 	}
 }
 
@@ -84,7 +79,7 @@ type ErrorGroupClient struct {
 	CallOptions *ErrorGroupCallOptions
 
 	// The metadata to be sent with each request.
-	metadata metadata.MD
+	xGoogHeader []string
 }
 
 // NewErrorGroupClient creates a new error group service client.
@@ -101,7 +96,7 @@ func NewErrorGroupClient(ctx context.Context, opts ...option.ClientOption) (*Err
 
 		errorGroupClient: clouderrorreportingpb.NewErrorGroupServiceClient(conn),
 	}
-	c.SetGoogleClientInfo("gax", gax.Version)
+	c.SetGoogleClientInfo()
 	return c, nil
 }
 
@@ -119,10 +114,10 @@ func (c *ErrorGroupClient) Close() error {
 // SetGoogleClientInfo sets the name and version of the application in
 // the `x-goog-api-client` header passed on each request. Intended for
 // use by Google-written clients.
-func (c *ErrorGroupClient) SetGoogleClientInfo(name, version string) {
-	goVersion := strings.Replace(runtime.Version(), " ", "_", -1)
-	v := fmt.Sprintf("%s/%s %s gax/%s go/%s", name, version, gapicNameVersion, gax.Version, goVersion)
-	c.metadata = metadata.Pairs("x-goog-api-client", v)
+func (c *ErrorGroupClient) SetGoogleClientInfo(keyval ...string) {
+	kv := append([]string{"gl-go", version.Go()}, keyval...)
+	kv = append(kv, "gapic", version.Repo, "gax", gax.Version, "grpc", grpc.Version)
+	c.xGoogHeader = []string{gax.XGoogHeader(kv...)}
 }
 
 // ErrorGroupGroupPath returns the path for the group resource.
@@ -138,15 +133,15 @@ func ErrorGroupGroupPath(project, group string) string {
 }
 
 // GetGroup get the specified group.
-func (c *ErrorGroupClient) GetGroup(ctx context.Context, req *clouderrorreportingpb.GetGroupRequest) (*clouderrorreportingpb.ErrorGroup, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+func (c *ErrorGroupClient) GetGroup(ctx context.Context, req *clouderrorreportingpb.GetGroupRequest, opts ...gax.CallOption) (*clouderrorreportingpb.ErrorGroup, error) {
+	ctx = insertXGoog(ctx, c.xGoogHeader)
+	opts = append(c.CallOptions.GetGroup[0:len(c.CallOptions.GetGroup):len(c.CallOptions.GetGroup)], opts...)
 	var resp *clouderrorreportingpb.ErrorGroup
-	err := gax.Invoke(ctx, func(ctx context.Context) error {
+	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.errorGroupClient.GetGroup(ctx, req)
+		resp, err = c.errorGroupClient.GetGroup(ctx, req, settings.GRPC...)
 		return err
-	}, c.CallOptions.GetGroup...)
+	}, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -155,15 +150,15 @@ func (c *ErrorGroupClient) GetGroup(ctx context.Context, req *clouderrorreportin
 
 // UpdateGroup replace the data for the specified group.
 // Fails if the group does not exist.
-func (c *ErrorGroupClient) UpdateGroup(ctx context.Context, req *clouderrorreportingpb.UpdateGroupRequest) (*clouderrorreportingpb.ErrorGroup, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+func (c *ErrorGroupClient) UpdateGroup(ctx context.Context, req *clouderrorreportingpb.UpdateGroupRequest, opts ...gax.CallOption) (*clouderrorreportingpb.ErrorGroup, error) {
+	ctx = insertXGoog(ctx, c.xGoogHeader)
+	opts = append(c.CallOptions.UpdateGroup[0:len(c.CallOptions.UpdateGroup):len(c.CallOptions.UpdateGroup)], opts...)
 	var resp *clouderrorreportingpb.ErrorGroup
-	err := gax.Invoke(ctx, func(ctx context.Context) error {
+	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.errorGroupClient.UpdateGroup(ctx, req)
+		resp, err = c.errorGroupClient.UpdateGroup(ctx, req, settings.GRPC...)
 		return err
-	}, c.CallOptions.UpdateGroup...)
+	}, opts...)
 	if err != nil {
 		return nil, err
 	}

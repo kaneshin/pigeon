@@ -22,6 +22,7 @@ import (
 
 	"cloud.google.com/go/civil"
 	"cloud.google.com/go/internal/pretty"
+	"cloud.google.com/go/internal/testutil"
 
 	bq "google.golang.org/api/bigquery/v2"
 )
@@ -192,12 +193,12 @@ func TestSchemaConversion(t *testing.T) {
 
 	for _, tc := range testCases {
 		bqSchema := tc.schema.asTableSchema()
-		if !reflect.DeepEqual(bqSchema, tc.bqSchema) {
+		if !testutil.Equal(bqSchema, tc.bqSchema) {
 			t.Errorf("converting to TableSchema: got:\n%v\nwant:\n%v",
 				pretty.Value(bqSchema), pretty.Value(tc.bqSchema))
 		}
 		schema := convertTableSchema(tc.bqSchema)
-		if !reflect.DeepEqual(schema, tc.schema) {
+		if !testutil.Equal(schema, tc.schema) {
 			t.Errorf("converting to Schema: got:\n%v\nwant:\n%v", schema, tc.schema)
 		}
 	}
@@ -306,13 +307,13 @@ func TestSimpleInference(t *testing.T) {
 			},
 		},
 	}
-	for i, tc := range testCases {
+	for _, tc := range testCases {
 		got, err := InferSchema(tc.in)
 		if err != nil {
-			t.Fatalf("%d: error inferring TableSchema: %v", i, err)
+			t.Fatalf("%T: error inferring TableSchema: %v", tc.in, err)
 		}
-		if !reflect.DeepEqual(got, tc.want) {
-			t.Errorf("%d: inferring TableSchema: got:\n%#v\nwant:\n%#v", i,
+		if !testutil.Equal(got, tc.want) {
+			t.Errorf("%T: inferring TableSchema: got:\n%#v\nwant:\n%#v", tc.in,
 				pretty.Value(got), pretty.Value(tc.want))
 		}
 	}
@@ -337,6 +338,10 @@ type containsDoubleNested struct {
 
 type ptrNested struct {
 	Ptr *struct{ Inside int }
+}
+
+type dup struct { // more than one field of the same struct type
+	A, B allBoolean
 }
 
 func TestNestedInference(t *testing.T) {
@@ -386,15 +391,32 @@ func TestNestedInference(t *testing.T) {
 				},
 			},
 		},
+		{
+			in: dup{},
+			want: Schema{
+				&FieldSchema{
+					Name:     "A",
+					Required: true,
+					Type:     "RECORD",
+					Schema:   Schema{reqField("Bool", "BOOLEAN")},
+				},
+				&FieldSchema{
+					Name:     "B",
+					Required: true,
+					Type:     "RECORD",
+					Schema:   Schema{reqField("Bool", "BOOLEAN")},
+				},
+			},
+		},
 	}
 
-	for i, tc := range testCases {
+	for _, tc := range testCases {
 		got, err := InferSchema(tc.in)
 		if err != nil {
-			t.Fatalf("%d: error inferring TableSchema: %v", i, err)
+			t.Fatalf("%T: error inferring TableSchema: %v", tc.in, err)
 		}
-		if !reflect.DeepEqual(got, tc.want) {
-			t.Errorf("%d: inferring TableSchema: got:\n%#v\nwant:\n%#v", i,
+		if !testutil.Equal(got, tc.want) {
+			t.Errorf("%T: inferring TableSchema: got:\n%#v\nwant:\n%#v", tc.in,
 				pretty.Value(got), pretty.Value(tc.want))
 		}
 	}
@@ -462,7 +484,7 @@ func TestRepeatedInference(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%d: error inferring TableSchema: %v", i, err)
 		}
-		if !reflect.DeepEqual(got, tc.want) {
+		if !testutil.Equal(got, tc.want) {
 			t.Errorf("%d: inferring TableSchema: got:\n%#v\nwant:\n%#v", i,
 				pretty.Value(got), pretty.Value(tc.want))
 		}
@@ -491,7 +513,7 @@ func TestEmbeddedInference(t *testing.T) {
 		reqField("Embedded", "INTEGER"),
 		reqField("Embedded2", "INTEGER"),
 	}
-	if !reflect.DeepEqual(got, want) {
+	if !testutil.Equal(got, want) {
 		t.Errorf("got %v, want %v", pretty.Value(got), pretty.Value(want))
 	}
 }
@@ -596,7 +618,7 @@ func TestTagInference(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%d: error inferring TableSchema: %v", i, err)
 		}
-		if !reflect.DeepEqual(got, tc.want) {
+		if !testutil.Equal(got, tc.want) {
 			t.Errorf("%d: inferring TableSchema: got:\n%#v\nwant:\n%#v", i,
 				pretty.Value(got), pretty.Value(tc.want))
 		}
@@ -654,7 +676,7 @@ func TestTagInferenceErrors(t *testing.T) {
 	for i, tc := range testCases {
 		want := tc.err
 		_, got := InferSchema(tc.in)
-		if !reflect.DeepEqual(got, want) {
+		if got != want {
 			t.Errorf("%d: inferring TableSchema: got:\n%#v\nwant:\n%#v", i, got, want)
 		}
 	}
@@ -725,8 +747,51 @@ func TestSchemaErrors(t *testing.T) {
 	for _, tc := range testCases {
 		want := tc.err
 		_, got := InferSchema(tc.in)
-		if !reflect.DeepEqual(got, want) {
+		if got != want {
 			t.Errorf("%#v: got:\n%#v\nwant:\n%#v", tc.in, got, want)
+		}
+	}
+}
+
+func TestHasRecursiveType(t *testing.T) {
+	type (
+		nonStruct int
+		nonRec    struct{ A string }
+		dup       struct{ A, B nonRec }
+		rec       struct {
+			A int
+			B *rec
+		}
+		recUnexported struct {
+			A int
+			b *rec
+		}
+		hasRec struct {
+			A int
+			R *rec
+		}
+		recSlicePointer struct {
+			A []*recSlicePointer
+		}
+	)
+	for _, test := range []struct {
+		in   interface{}
+		want bool
+	}{
+		{nonStruct(0), false},
+		{nonRec{}, false},
+		{dup{}, false},
+		{rec{}, true},
+		{recUnexported{}, false},
+		{hasRec{}, true},
+		{&recSlicePointer{}, true},
+	} {
+		got, err := hasRecursiveType(reflect.TypeOf(test.in), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != test.want {
+			t.Errorf("%T: got %t, want %t", test.in, got, test.want)
 		}
 	}
 }

@@ -82,6 +82,14 @@ type PropertyLoadSaver interface {
 	Save() ([]Property, error)
 }
 
+// KeyLoader can store a Key.
+type KeyLoader interface {
+	// PropertyLoadSaver is embedded because a KeyLoader
+	// must also always implement PropertyLoadSaver.
+	PropertyLoadSaver
+	LoadKey(k *Key) error
+}
+
 // PropertyList converts a []Property to implement PropertyLoadSaver.
 type PropertyList []Property
 
@@ -223,8 +231,14 @@ func validateChildType(t reflect.Type, fieldName string, flatten, prevSlice bool
 	return nil
 }
 
+// isLeafType determines whether or not a type is a 'leaf type'
+// and should not be recursed into, but considered one field.
+func isLeafType(t reflect.Type) bool {
+	return t == typeOfTime || t == typeOfGeoPoint
+}
+
 // structCache collects the structs whose fields have already been calculated.
-var structCache = fields.NewCache(parseTag, validateType)
+var structCache = fields.NewCache(parseTag, validateType, isLeafType)
 
 // structPLS adapts a struct to be a PropertyLoadSaver.
 type structPLS struct {
@@ -249,6 +263,11 @@ func newStructPLS(p interface{}) (*structPLS, error) {
 
 // LoadStruct loads the properties from p to dst.
 // dst must be a struct pointer.
+//
+// The values of dst's unmatched struct fields are not modified,
+// and matching slice-typed fields are not reset before appending to
+// them. In particular, it is recommended to pass a pointer to a zero
+// valued struct on each LoadStruct call.
 func LoadStruct(dst interface{}, p []Property) error {
 	x, err := newStructPLS(dst)
 	if err != nil {
@@ -265,4 +284,59 @@ func SaveStruct(src interface{}) ([]Property, error) {
 		return nil, err
 	}
 	return x.Save()
+}
+
+// plsForLoad tries to convert v to a PropertyLoadSaver.
+// If successful, plsForLoad returns a settable v as a PropertyLoadSaver.
+//
+// plsForLoad is intended to be used with nested struct fields which
+// may implement PropertyLoadSaver.
+//
+// v must be settable.
+func plsForLoad(v reflect.Value) (PropertyLoadSaver, error) {
+	var nilPtr bool
+	if v.Kind() == reflect.Ptr && v.IsNil() {
+		nilPtr = true
+		v.Set(reflect.New(v.Type().Elem()))
+	}
+
+	vpls, err := pls(v)
+	if nilPtr && (vpls == nil || err != nil) {
+		// unset v
+		v.Set(reflect.Zero(v.Type()))
+	}
+
+	return vpls, err
+}
+
+// plsForSave tries to convert v to a PropertyLoadSaver.
+// If successful, plsForSave returns v as a PropertyLoadSaver.
+//
+// plsForSave is intended to be used with nested struct fields which
+// may implement PropertyLoadSaver.
+//
+// v must be settable.
+func plsForSave(v reflect.Value) (PropertyLoadSaver, error) {
+	switch v.Kind() {
+	case reflect.Ptr, reflect.Slice, reflect.Map, reflect.Interface, reflect.Chan, reflect.Func:
+		// If v is nil, return early. v contains no data to save.
+		if v.IsNil() {
+			return nil, nil
+		}
+	}
+
+	return pls(v)
+}
+
+func pls(v reflect.Value) (PropertyLoadSaver, error) {
+	if v.Kind() != reflect.Ptr {
+		if _, ok := v.Interface().(PropertyLoadSaver); ok {
+			return nil, fmt.Errorf("datastore: PropertyLoadSaver methods must be implemented on a pointer to %T.", v.Interface())
+		}
+
+		v = v.Addr()
+	}
+
+	vpls, _ := v.Interface().(PropertyLoadSaver)
+	return vpls, nil
 }

@@ -83,6 +83,46 @@ func TestBasics(t *testing.T) {
 	}
 }
 
+func TestTopLevelKeyLoaded(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Integration tests skipped in short mode")
+	}
+
+	ctx, _ := context.WithTimeout(context.Background(), time.Second*20)
+	client := newClient(ctx, t)
+	defer client.Close()
+
+	completeKey := NameKey("EntityWithKey", "myent", nil)
+
+	type EntityWithKey struct {
+		I int
+		S string
+		K *Key `datastore:"__key__"`
+	}
+
+	in := &EntityWithKey{
+		I: 12,
+		S: "abcd",
+	}
+
+	k, err := client.Put(ctx, completeKey, in)
+	if err != nil {
+		t.Fatalf("client.Put: %v", err)
+	}
+
+	var e EntityWithKey
+	err = client.Get(ctx, k, &e)
+	if err != nil {
+		t.Fatalf("client.Get: %v", err)
+	}
+
+	// The two keys should be absolutely identical.
+	if !reflect.DeepEqual(e.K, k) {
+		t.Fatalf("e.K not equal to k; got %#v, want %#v", e.K, k)
+	}
+
+}
+
 func TestListValues(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Integration tests skipped in short mode")
@@ -129,6 +169,7 @@ func TestGetMulti(t *testing.T) {
 	}{
 		{key: NameKey("X", "item1", p), put: true},
 		{key: NameKey("X", "item2", p), put: false},
+		{key: NameKey("X", "item3", p), put: false},
 		{key: NameKey("X", "item3", p), put: false},
 		{key: NameKey("X", "item4", p), put: true},
 	}
@@ -613,6 +654,12 @@ func TestProjection(t *testing.T) {
 			200 + 300,
 		},
 		{
+			"distinct on",
+			baseQuery.Project("J").DistinctOn("J"),
+			2,
+			200 + 300,
+		},
+		{
 			"project on meaningful (GD_WHEN) field",
 			baseQuery.Project("U"),
 			3,
@@ -957,6 +1004,8 @@ func TestNilPointers(t *testing.T) {
 		t.Errorf("Get: err %v; want %v", err, want)
 	}
 
+	// Test that deleting with duplicate keys work.
+	keys = append(keys, keys...)
 	if err := client.DeleteMulti(ctx, keys); err != nil {
 		t.Errorf("Delete: %v", err)
 	}

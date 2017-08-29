@@ -1,4 +1,4 @@
-// Copyright 2016, Google Inc. All rights reserved.
+// Copyright 2017, Google Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,10 +22,12 @@ import (
 
 import (
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/golang/protobuf/proto"
@@ -35,6 +37,8 @@ import (
 	status "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	gstatus "google.golang.org/grpc/status"
 )
 
 var _ = io.EOF
@@ -42,6 +46,11 @@ var _ = ptypes.MarshalAny
 var _ status.Status
 
 type mockErrorGroupServer struct {
+	// Embed for forward compatibility.
+	// Tests will keep working if more methods are added
+	// in the future.
+	clouderrorreportingpb.ErrorGroupServiceServer
+
 	reqs []proto.Message
 
 	// If set, all calls return this error.
@@ -51,7 +60,11 @@ type mockErrorGroupServer struct {
 	resps []proto.Message
 }
 
-func (s *mockErrorGroupServer) GetGroup(_ context.Context, req *clouderrorreportingpb.GetGroupRequest) (*clouderrorreportingpb.ErrorGroup, error) {
+func (s *mockErrorGroupServer) GetGroup(ctx context.Context, req *clouderrorreportingpb.GetGroupRequest) (*clouderrorreportingpb.ErrorGroup, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
@@ -59,7 +72,11 @@ func (s *mockErrorGroupServer) GetGroup(_ context.Context, req *clouderrorreport
 	return s.resps[0].(*clouderrorreportingpb.ErrorGroup), nil
 }
 
-func (s *mockErrorGroupServer) UpdateGroup(_ context.Context, req *clouderrorreportingpb.UpdateGroupRequest) (*clouderrorreportingpb.ErrorGroup, error) {
+func (s *mockErrorGroupServer) UpdateGroup(ctx context.Context, req *clouderrorreportingpb.UpdateGroupRequest) (*clouderrorreportingpb.ErrorGroup, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
@@ -68,6 +85,11 @@ func (s *mockErrorGroupServer) UpdateGroup(_ context.Context, req *clouderrorrep
 }
 
 type mockErrorStatsServer struct {
+	// Embed for forward compatibility.
+	// Tests will keep working if more methods are added
+	// in the future.
+	clouderrorreportingpb.ErrorStatsServiceServer
+
 	reqs []proto.Message
 
 	// If set, all calls return this error.
@@ -77,7 +99,11 @@ type mockErrorStatsServer struct {
 	resps []proto.Message
 }
 
-func (s *mockErrorStatsServer) ListGroupStats(_ context.Context, req *clouderrorreportingpb.ListGroupStatsRequest) (*clouderrorreportingpb.ListGroupStatsResponse, error) {
+func (s *mockErrorStatsServer) ListGroupStats(ctx context.Context, req *clouderrorreportingpb.ListGroupStatsRequest) (*clouderrorreportingpb.ListGroupStatsResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
@@ -85,7 +111,11 @@ func (s *mockErrorStatsServer) ListGroupStats(_ context.Context, req *clouderror
 	return s.resps[0].(*clouderrorreportingpb.ListGroupStatsResponse), nil
 }
 
-func (s *mockErrorStatsServer) ListEvents(_ context.Context, req *clouderrorreportingpb.ListEventsRequest) (*clouderrorreportingpb.ListEventsResponse, error) {
+func (s *mockErrorStatsServer) ListEvents(ctx context.Context, req *clouderrorreportingpb.ListEventsRequest) (*clouderrorreportingpb.ListEventsResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
@@ -93,7 +123,11 @@ func (s *mockErrorStatsServer) ListEvents(_ context.Context, req *clouderrorrepo
 	return s.resps[0].(*clouderrorreportingpb.ListEventsResponse), nil
 }
 
-func (s *mockErrorStatsServer) DeleteEvents(_ context.Context, req *clouderrorreportingpb.DeleteEventsRequest) (*clouderrorreportingpb.DeleteEventsResponse, error) {
+func (s *mockErrorStatsServer) DeleteEvents(ctx context.Context, req *clouderrorreportingpb.DeleteEventsRequest) (*clouderrorreportingpb.DeleteEventsResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
@@ -102,6 +136,11 @@ func (s *mockErrorStatsServer) DeleteEvents(_ context.Context, req *clouderrorre
 }
 
 type mockReportErrorsServer struct {
+	// Embed for forward compatibility.
+	// Tests will keep working if more methods are added
+	// in the future.
+	clouderrorreportingpb.ReportErrorsServiceServer
+
 	reqs []proto.Message
 
 	// If set, all calls return this error.
@@ -111,7 +150,11 @@ type mockReportErrorsServer struct {
 	resps []proto.Message
 }
 
-func (s *mockReportErrorsServer) ReportErrorEvent(_ context.Context, req *clouderrorreportingpb.ReportErrorEventRequest) (*clouderrorreportingpb.ReportErrorEventResponse, error) {
+func (s *mockReportErrorsServer) ReportErrorEvent(ctx context.Context, req *clouderrorreportingpb.ReportErrorEventRequest) (*clouderrorreportingpb.ReportErrorEventResponse, error) {
+	md, _ := metadata.FromIncomingContext(ctx)
+	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
+		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
+	}
 	s.reqs = append(s.reqs, req)
 	if s.err != nil {
 		return nil, s.err
@@ -191,8 +234,8 @@ func TestErrorGroupServiceGetGroup(t *testing.T) {
 }
 
 func TestErrorGroupServiceGetGroupError(t *testing.T) {
-	errCode := codes.Internal
-	mockErrorGroup.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockErrorGroup.err = gstatus.Error(errCode, "test error")
 
 	var formattedGroupName string = ErrorGroupGroupPath("[PROJECT]", "[GROUP]")
 	var request = &clouderrorreportingpb.GetGroupRequest{
@@ -206,7 +249,9 @@ func TestErrorGroupServiceGetGroupError(t *testing.T) {
 
 	resp, err := c.GetGroup(context.Background(), request)
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 	_ = resp
@@ -250,8 +295,8 @@ func TestErrorGroupServiceUpdateGroup(t *testing.T) {
 }
 
 func TestErrorGroupServiceUpdateGroupError(t *testing.T) {
-	errCode := codes.Internal
-	mockErrorGroup.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockErrorGroup.err = gstatus.Error(errCode, "test error")
 
 	var group *clouderrorreportingpb.ErrorGroup = &clouderrorreportingpb.ErrorGroup{}
 	var request = &clouderrorreportingpb.UpdateGroupRequest{
@@ -265,7 +310,9 @@ func TestErrorGroupServiceUpdateGroupError(t *testing.T) {
 
 	resp, err := c.UpdateGroup(context.Background(), request)
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 	_ = resp
@@ -322,8 +369,8 @@ func TestErrorStatsServiceListGroupStats(t *testing.T) {
 }
 
 func TestErrorStatsServiceListGroupStatsError(t *testing.T) {
-	errCode := codes.Internal
-	mockErrorStats.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockErrorStats.err = gstatus.Error(errCode, "test error")
 
 	var formattedProjectName string = ErrorStatsProjectPath("[PROJECT]")
 	var timeRange *clouderrorreportingpb.QueryTimeRange = &clouderrorreportingpb.QueryTimeRange{}
@@ -339,7 +386,9 @@ func TestErrorStatsServiceListGroupStatsError(t *testing.T) {
 
 	resp, err := c.ListGroupStats(context.Background(), request).Next()
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 	_ = resp
@@ -396,8 +445,8 @@ func TestErrorStatsServiceListEvents(t *testing.T) {
 }
 
 func TestErrorStatsServiceListEventsError(t *testing.T) {
-	errCode := codes.Internal
-	mockErrorStats.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockErrorStats.err = gstatus.Error(errCode, "test error")
 
 	var formattedProjectName string = ErrorStatsProjectPath("[PROJECT]")
 	var groupId string = "groupId506361563"
@@ -413,7 +462,9 @@ func TestErrorStatsServiceListEventsError(t *testing.T) {
 
 	resp, err := c.ListEvents(context.Background(), request).Next()
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 	_ = resp
@@ -452,8 +503,8 @@ func TestErrorStatsServiceDeleteEvents(t *testing.T) {
 }
 
 func TestErrorStatsServiceDeleteEventsError(t *testing.T) {
-	errCode := codes.Internal
-	mockErrorStats.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockErrorStats.err = gstatus.Error(errCode, "test error")
 
 	var formattedProjectName string = ErrorStatsProjectPath("[PROJECT]")
 	var request = &clouderrorreportingpb.DeleteEventsRequest{
@@ -467,7 +518,9 @@ func TestErrorStatsServiceDeleteEventsError(t *testing.T) {
 
 	resp, err := c.DeleteEvents(context.Background(), request)
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 	_ = resp
@@ -508,8 +561,8 @@ func TestReportErrorsServiceReportErrorEvent(t *testing.T) {
 }
 
 func TestReportErrorsServiceReportErrorEventError(t *testing.T) {
-	errCode := codes.Internal
-	mockReportErrors.err = grpc.Errorf(errCode, "test error")
+	errCode := codes.PermissionDenied
+	mockReportErrors.err = gstatus.Error(errCode, "test error")
 
 	var formattedProjectName string = ReportErrorsProjectPath("[PROJECT]")
 	var event *clouderrorreportingpb.ReportedErrorEvent = &clouderrorreportingpb.ReportedErrorEvent{}
@@ -525,7 +578,9 @@ func TestReportErrorsServiceReportErrorEventError(t *testing.T) {
 
 	resp, err := c.ReportErrorEvent(context.Background(), request)
 
-	if c := grpc.Code(err); c != errCode {
+	if st, ok := gstatus.FromError(err); !ok {
+		t.Errorf("got error %v, expected grpc error", err)
+	} else if c := st.Code(); c != errCode {
 		t.Errorf("got error code %q, want %q", c, errCode)
 	}
 	_ = resp

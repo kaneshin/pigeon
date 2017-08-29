@@ -21,6 +21,11 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/google/go-cmp/cmp"
+
+	"cloud.google.com/go/internal/testutil"
 )
 
 type embed1 struct {
@@ -62,6 +67,10 @@ type S1 struct {
 	Anonymous
 }
 
+type Time struct {
+	time.Time
+}
+
 var intType = reflect.TypeOf(int(0))
 
 func field(name string, tval interface{}, index ...int) *Field {
@@ -82,7 +91,7 @@ func tfield(name string, tval interface{}, index ...int) *Field {
 }
 
 func TestFieldsNoTags(t *testing.T) {
-	c := NewCache(nil, nil)
+	c := NewCache(nil, nil, nil)
 	got, err := c.Fields(reflect.TypeOf(S1{}))
 	if err != nil {
 		t.Fatal(err)
@@ -132,12 +141,37 @@ func TestAgainstJSONEncodingNoTags(t *testing.T) {
 	jsonRoundTrip(t, s1, &want)
 	var got S1
 	got.embed2 = &embed2{} // need this because reflection won't create it
-	fields, err := NewCache(nil, nil).Fields(reflect.TypeOf(got))
+	fields, err := NewCache(nil, nil, nil).Fields(reflect.TypeOf(got))
 	if err != nil {
 		t.Fatal(err)
 	}
 	setFields(fields, &got, s1)
-	if !reflect.DeepEqual(got, want) {
+	if !testutil.Equal(got, want,
+		cmp.AllowUnexported(S1{}, embed1{}, embed2{}, embed3{}, embed4{}, embed5{})) {
+		t.Errorf("got\n%+v\nwant\n%+v", got, want)
+	}
+}
+
+// Tests use of LeafTypes parameter to NewCache
+func TestAgainstJSONEncodingEmbeddedTime(t *testing.T) {
+	timeLeafFn := func(t reflect.Type) bool {
+		return t == reflect.TypeOf(time.Time{})
+	}
+	// Demonstrates that this package can produce the same set of
+	// fields as encoding/json for a struct with an embedded time.Time.
+	now := time.Now().UTC()
+	myt := Time{
+		now,
+	}
+	var want Time
+	jsonRoundTrip(t, myt, &want)
+	var got Time
+	fields, err := NewCache(nil, nil, timeLeafFn).Fields(reflect.TypeOf(got))
+	if err != nil {
+		t.Fatal(err)
+	}
+	setFields(fields, &got, myt)
+	if !testutil.Equal(got, want) {
 		t.Errorf("got\n%+v\nwant\n%+v", got, want)
 	}
 }
@@ -196,7 +230,7 @@ func validateFunc(t reflect.Type) (err error) {
 }
 
 func TestFieldsWithTags(t *testing.T) {
-	got, err := NewCache(jsonTagParser, nil).Fields(reflect.TypeOf(S2{}))
+	got, err := NewCache(jsonTagParser, nil, nil).Fields(reflect.TypeOf(S2{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,12 +269,12 @@ func TestAgainstJSONEncodingWithTags(t *testing.T) {
 	var want S2
 	jsonRoundTrip(t, s2, &want)
 	var got S2
-	fields, err := NewCache(jsonTagParser, nil).Fields(reflect.TypeOf(got))
+	fields, err := NewCache(jsonTagParser, nil, nil).Fields(reflect.TypeOf(got))
 	if err != nil {
 		t.Fatal(err)
 	}
 	setFields(fields, &got, s2)
-	if !reflect.DeepEqual(got, want) {
+	if !testutil.Equal(got, want, cmp.AllowUnexported(S2{})) {
 		t.Errorf("got\n%+v\nwant\n%+v", got, want)
 	}
 }
@@ -259,7 +293,7 @@ func TestUnexportedAnonymousNonStruct(t *testing.T) {
 		}
 	)
 
-	got, err := NewCache(jsonTagParser, nil).Fields(reflect.TypeOf(S{}))
+	got, err := NewCache(jsonTagParser, nil, nil).Fields(reflect.TypeOf(S{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,7 +312,7 @@ func TestUnexportedAnonymousStruct(t *testing.T) {
 			s1 `json:"Y"`
 		}
 	)
-	got, err := NewCache(jsonTagParser, nil).Fields(reflect.TypeOf(S2{}))
+	got, err := NewCache(jsonTagParser, nil, nil).Fields(reflect.TypeOf(S2{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,7 +354,7 @@ func TestIgnore(t *testing.T) {
 	type S struct {
 		X int `json:"-"`
 	}
-	got, err := NewCache(jsonTagParser, nil).Fields(reflect.TypeOf(S{}))
+	got, err := NewCache(jsonTagParser, nil, nil).Fields(reflect.TypeOf(S{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +367,7 @@ func TestParsedTag(t *testing.T) {
 	type S struct {
 		X int `json:"name,omitempty"`
 	}
-	got, err := NewCache(jsonTagParser, nil).Fields(reflect.TypeOf(S{}))
+	got, err := NewCache(jsonTagParser, nil, nil).Fields(reflect.TypeOf(S{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -352,7 +386,7 @@ func TestValidateFunc(t *testing.T) {
 		B []int
 	}
 
-	_, err := NewCache(nil, validateFunc).Fields(reflect.TypeOf(MyInvalidStruct{}))
+	_, err := NewCache(nil, validateFunc, nil).Fields(reflect.TypeOf(MyInvalidStruct{}))
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -361,7 +395,7 @@ func TestValidateFunc(t *testing.T) {
 		A string
 		B int
 	}
-	_, err = NewCache(nil, validateFunc).Fields(reflect.TypeOf(MyValidStruct{}))
+	_, err = NewCache(nil, validateFunc, nil).Fields(reflect.TypeOf(MyValidStruct{}))
 	if err != nil {
 		t.Fatalf("expected nil, got error: %s\n", err)
 	}
@@ -381,7 +415,7 @@ func compareFields(got []Field, want []*Field) (msg string, ok bool) {
 }
 
 // Need this because Field contains a function, which cannot be compared even
-// by reflect.DeepEqual.
+// by testutil.Equal.
 func fieldsEqual(f1, f2 *Field) bool {
 	if f1 == nil || f2 == nil {
 		return f1 == f2
@@ -389,7 +423,7 @@ func fieldsEqual(f1, f2 *Field) bool {
 	return f1.Name == f2.Name &&
 		f1.NameFromTag == f2.NameFromTag &&
 		f1.Type == f2.Type &&
-		reflect.DeepEqual(f1.ParsedTag, f2.ParsedTag)
+		testutil.Equal(f1.ParsedTag, f2.ParsedTag)
 }
 
 // Set the fields of dst from those of src.
@@ -430,7 +464,7 @@ type S4 struct {
 }
 
 func TestMatchingField(t *testing.T) {
-	fields, err := NewCache(jsonTagParser, nil).Fields(reflect.TypeOf(S3{}))
+	fields, err := NewCache(jsonTagParser, nil, nil).Fields(reflect.TypeOf(S3{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -472,7 +506,7 @@ func TestAgainstJSONMatchingField(t *testing.T) {
 	var want S3
 	jsonRoundTrip(t, s3, &want)
 	v := reflect.ValueOf(want)
-	fields, err := NewCache(jsonTagParser, nil).Fields(reflect.TypeOf(S3{}))
+	fields, err := NewCache(jsonTagParser, nil, nil).Fields(reflect.TypeOf(S3{}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -506,7 +540,7 @@ func TestTagErrors(t *testing.T) {
 			return "", false, nil, errors.New("error")
 		}
 		return s, true, nil, nil
-	}, nil)
+	}, nil, nil)
 
 	type T struct {
 		X int `f:"ok"`

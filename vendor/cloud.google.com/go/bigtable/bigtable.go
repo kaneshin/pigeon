@@ -28,7 +28,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"golang.org/x/net/context"
 	"google.golang.org/api/option"
-	"google.golang.org/api/transport"
+	gtransport "google.golang.org/api/transport/grpc"
 	btpb "google.golang.org/genproto/googleapis/bigtable/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -53,9 +53,14 @@ func NewClient(ctx context.Context, project, instance string, opts ...option.Cli
 		return nil, err
 	}
 	// Default to a small connection pool that can be overridden.
-	o = append(o, option.WithGRPCConnectionPool(4))
+	o = append(o,
+		option.WithGRPCConnectionPool(4),
+
+		// TODO(grpc/grpc-go#1388) using connection pool without WithBlock
+		// can cause RPCs to fail randomly. We can delete this after the issue is fixed.
+		option.WithGRPCDialOption(grpc.WithBlock()))
 	o = append(o, opts...)
-	conn, err := transport.DialGRPC(ctx, o...)
+	conn, err := gtransport.Dial(ctx, o...)
 	if err != nil {
 		return nil, fmt.Errorf("dialing: %v", err)
 	}
@@ -120,7 +125,7 @@ func (c *Client) Open(table string) *Table {
 // By default, the yielded rows will contain all values in all cells.
 // Use RowFilter to limit the cells returned.
 func (t *Table) ReadRows(ctx context.Context, arg RowSet, f func(Row) bool, opts ...ReadOption) error {
-	ctx = mergeMetadata(ctx, t.md)
+	ctx = mergeOutgoingMetadata(ctx, t.md)
 
 	var prevRowKey string
 	err := gax.Invoke(ctx, func(ctx context.Context) error {
@@ -210,13 +215,16 @@ func decodeFamilyProto(r Row, row string, f *btpb.Family) {
 	}
 }
 
-// RowSet is a set of rows to be read. It is satisfied by RowList and RowRange.
+// RowSet is a set of rows to be read. It is satisfied by RowList, RowRange and RowRangeList.
 type RowSet interface {
 	proto() *btpb.RowSet
 
 	// retainRowsAfter returns a new RowSet that does not include the
 	// given row key or any row key lexicographically less than it.
 	retainRowsAfter(lastRowKey string) RowSet
+
+	// Valid reports whether this set can cover at least one row.
+	valid() bool
 }
 
 // RowList is a sequence of row keys.
@@ -238,6 +246,10 @@ func (r RowList) retainRowsAfter(lastRowKey string) RowSet {
 		}
 	}
 	return retryKeys
+}
+
+func (r RowList) valid() bool {
+	return len(r) > 0
 }
 
 // A RowRange is a half-open interval [Start, Limit) encompassing
@@ -287,7 +299,7 @@ func (r RowRange) proto() *btpb.RowSet {
 }
 
 func (r RowRange) retainRowsAfter(lastRowKey string) RowSet {
-	if lastRowKey == "" {
+	if lastRowKey == "" || lastRowKey < r.start {
 		return r
 	}
 	// Set the beginning of the range to the row after the last scanned.
@@ -296,6 +308,46 @@ func (r RowRange) retainRowsAfter(lastRowKey string) RowSet {
 		return InfiniteRange(start)
 	}
 	return NewRange(start, r.limit)
+}
+
+func (r RowRange) valid() bool {
+	return r.start < r.limit
+}
+
+// RowRangeList is a sequence of RowRanges representing the union of the ranges.
+type RowRangeList []RowRange
+
+func (r RowRangeList) proto() *btpb.RowSet {
+	ranges := make([]*btpb.RowRange, len(r))
+	for i, rr := range r {
+		// RowRange.proto() returns a RowSet with a single element RowRange array
+		ranges[i] = rr.proto().RowRanges[0]
+	}
+	return &btpb.RowSet{RowRanges: ranges}
+}
+
+func (r RowRangeList) retainRowsAfter(lastRowKey string) RowSet {
+	if lastRowKey == "" {
+		return r
+	}
+	// Return a list of any range that has not yet been completely processed
+	var ranges RowRangeList
+	for _, rr := range r {
+		retained := rr.retainRowsAfter(lastRowKey)
+		if retained.valid() {
+			ranges = append(ranges, retained.(RowRange))
+		}
+	}
+	return ranges
+}
+
+func (r RowRangeList) valid() bool {
+	for _, rr := range r {
+		if rr.valid() {
+			return true
+		}
+	}
+	return false
 }
 
 // SingleRow returns a RowSet for reading a single row.
@@ -344,6 +396,9 @@ type ReadOption interface {
 }
 
 // RowFilter returns a ReadOption that applies f to the contents of read rows.
+//
+// If multiple RowFilters are provided, only the last is used. To combine filters,
+// use ChainFilters or InterleaveFilters instead.
 func RowFilter(f Filter) ReadOption { return rowFilter{f} }
 
 type rowFilter struct{ f Filter }
@@ -373,7 +428,7 @@ func mutationsAreRetryable(muts []*btpb.Mutation) bool {
 
 // Apply applies a Mutation to a specific row.
 func (t *Table) Apply(ctx context.Context, row string, m *Mutation, opts ...ApplyOption) error {
-	ctx = mergeMetadata(ctx, t.md)
+	ctx = mergeOutgoingMetadata(ctx, t.md)
 	after := func(res proto.Message) {
 		for _, o := range opts {
 			o.after(res)
@@ -471,18 +526,13 @@ func NewCondMutation(cond Filter, mtrue, mfalse *Mutation) *Mutation {
 }
 
 // Set sets a value in a specified column, with the given timestamp.
-// The timestamp will be truncated to millisecond resolution.
+// The timestamp will be truncated to millisecond granularity.
 // A timestamp of ServerTime means to use the server timestamp.
 func (m *Mutation) Set(family, column string, ts Timestamp, value []byte) {
-	if ts != ServerTime {
-		// Truncate to millisecond resolution, since that's the default table config.
-		// TODO(dsymonds): Provide a way to override this behaviour.
-		ts -= ts % 1000
-	}
 	m.ops = append(m.ops, &btpb.Mutation{Mutation: &btpb.Mutation_SetCell_{&btpb.Mutation_SetCell{
 		FamilyName:      family,
 		ColumnQualifier: []byte(column),
-		TimestampMicros: int64(ts),
+		TimestampMicros: int64(ts.TruncateToMilliseconds()),
 		Value:           value,
 	}}})
 }
@@ -498,13 +548,14 @@ func (m *Mutation) DeleteCellsInColumn(family, column string) {
 // DeleteTimestampRange deletes all cells whose columns are family:column
 // and whose timestamps are in the half-open interval [start, end).
 // If end is zero, it will be interpreted as infinity.
+// The timestamps will be truncated to millisecond granularity.
 func (m *Mutation) DeleteTimestampRange(family, column string, start, end Timestamp) {
 	m.ops = append(m.ops, &btpb.Mutation{Mutation: &btpb.Mutation_DeleteFromColumn_{&btpb.Mutation_DeleteFromColumn{
 		FamilyName:      family,
 		ColumnQualifier: []byte(column),
 		TimeRange: &btpb.TimestampRange{
-			StartTimestampMicros: int64(start),
-			EndTimestampMicros:   int64(end),
+			StartTimestampMicros: int64(start.TruncateToMilliseconds()),
+			EndTimestampMicros:   int64(end.TruncateToMilliseconds()),
 		},
 	}}})
 }
@@ -539,7 +590,7 @@ type entryErr struct {
 //
 // Conditional mutations cannot be applied in bulk and providing one will result in an error.
 func (t *Table) ApplyBulk(ctx context.Context, rowKeys []string, muts []*Mutation, opts ...ApplyOption) ([]error, error) {
-	ctx = mergeMetadata(ctx, t.md)
+	ctx = mergeOutgoingMetadata(ctx, t.md)
 	if len(rowKeys) != len(muts) {
 		return nil, fmt.Errorf("mismatched rowKeys and mutation array lengths: %d, %d", len(rowKeys), len(muts))
 	}
@@ -662,10 +713,19 @@ func Now() Timestamp { return Time(time.Now()) }
 // Time converts a Timestamp into a time.Time.
 func (ts Timestamp) Time() time.Time { return time.Unix(0, int64(ts)*1e3) }
 
+// TruncateToMilliseconds truncates a Timestamp to millisecond granularity,
+// which is currently the only granularity supported.
+func (ts Timestamp) TruncateToMilliseconds() Timestamp {
+	if ts == ServerTime {
+		return ts
+	}
+	return ts - ts%1000
+}
+
 // ApplyReadModifyWrite applies a ReadModifyWrite to a specific row.
 // It returns the newly written cells.
 func (t *Table) ApplyReadModifyWrite(ctx context.Context, row string, m *ReadModifyWrite) (Row, error) {
-	ctx = mergeMetadata(ctx, t.md)
+	ctx = mergeOutgoingMetadata(ctx, t.md)
 	req := &btpb.ReadModifyWriteRowRequest{
 		TableName: t.c.fullTableName(t.table),
 		RowKey:    []byte(row),
@@ -722,9 +782,9 @@ func (m *ReadModifyWrite) Increment(family, column string, delta int64) {
 	})
 }
 
-// mergeMetadata returns a context populated by the existing metadata, if any,
-// joined with internal metadata.
-func mergeMetadata(ctx context.Context, md metadata.MD) context.Context {
-	mdCopy, _ := metadata.FromContext(ctx)
-	return metadata.NewContext(ctx, metadata.Join(mdCopy, md))
+// mergeOutgoingMetadata returns a context populated by the existing outgoing metadata,
+// if any, joined with internal metadata.
+func mergeOutgoingMetadata(ctx context.Context, md metadata.MD) context.Context {
+	mdCopy, _ := metadata.FromOutgoingContext(ctx)
+	return metadata.NewOutgoingContext(ctx, metadata.Join(mdCopy, md))
 }

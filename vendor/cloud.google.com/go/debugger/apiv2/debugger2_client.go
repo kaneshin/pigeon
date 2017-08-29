@@ -1,4 +1,4 @@
-// Copyright 2016, Google Inc. All rights reserved.
+// Copyright 2017, Google Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,11 +17,9 @@
 package debugger
 
 import (
-	"fmt"
-	"runtime"
-	"strings"
 	"time"
 
+	"cloud.google.com/go/internal/version"
 	gax "github.com/googleapis/gax-go"
 	"golang.org/x/net/context"
 	"google.golang.org/api/option"
@@ -29,7 +27,6 @@ import (
 	clouddebuggerpb "google.golang.org/genproto/googleapis/devtools/clouddebugger/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 )
 
 // Debugger2CallOptions contains the retry settings for each method of Debugger2Client.
@@ -44,10 +41,7 @@ type Debugger2CallOptions struct {
 func defaultDebugger2ClientOptions() []option.ClientOption {
 	return []option.ClientOption{
 		option.WithEndpoint("clouddebugger.googleapis.com:443"),
-		option.WithScopes(
-			"https://www.googleapis.com/auth/cloud-platform",
-			"https://www.googleapis.com/auth/cloud_debugger",
-		),
+		option.WithScopes(DefaultAuthScopes()...),
 	}
 }
 
@@ -87,7 +81,7 @@ type Debugger2Client struct {
 	CallOptions *Debugger2CallOptions
 
 	// The metadata to be sent with each request.
-	metadata metadata.MD
+	xGoogHeader []string
 }
 
 // NewDebugger2Client creates a new debugger2 client.
@@ -115,7 +109,7 @@ func NewDebugger2Client(ctx context.Context, opts ...option.ClientOption) (*Debu
 
 		debugger2Client: clouddebuggerpb.NewDebugger2Client(conn),
 	}
-	c.SetGoogleClientInfo("gax", gax.Version)
+	c.SetGoogleClientInfo()
 	return c, nil
 }
 
@@ -133,22 +127,22 @@ func (c *Debugger2Client) Close() error {
 // SetGoogleClientInfo sets the name and version of the application in
 // the `x-goog-api-client` header passed on each request. Intended for
 // use by Google-written clients.
-func (c *Debugger2Client) SetGoogleClientInfo(name, version string) {
-	goVersion := strings.Replace(runtime.Version(), " ", "_", -1)
-	v := fmt.Sprintf("%s/%s %s gax/%s go/%s", name, version, gapicNameVersion, gax.Version, goVersion)
-	c.metadata = metadata.Pairs("x-goog-api-client", v)
+func (c *Debugger2Client) SetGoogleClientInfo(keyval ...string) {
+	kv := append([]string{"gl-go", version.Go()}, keyval...)
+	kv = append(kv, "gapic", version.Repo, "gax", gax.Version, "grpc", grpc.Version)
+	c.xGoogHeader = []string{gax.XGoogHeader(kv...)}
 }
 
 // SetBreakpoint sets the breakpoint to the debuggee.
-func (c *Debugger2Client) SetBreakpoint(ctx context.Context, req *clouddebuggerpb.SetBreakpointRequest) (*clouddebuggerpb.SetBreakpointResponse, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+func (c *Debugger2Client) SetBreakpoint(ctx context.Context, req *clouddebuggerpb.SetBreakpointRequest, opts ...gax.CallOption) (*clouddebuggerpb.SetBreakpointResponse, error) {
+	ctx = insertXGoog(ctx, c.xGoogHeader)
+	opts = append(c.CallOptions.SetBreakpoint[0:len(c.CallOptions.SetBreakpoint):len(c.CallOptions.SetBreakpoint)], opts...)
 	var resp *clouddebuggerpb.SetBreakpointResponse
-	err := gax.Invoke(ctx, func(ctx context.Context) error {
+	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.debugger2Client.SetBreakpoint(ctx, req)
+		resp, err = c.debugger2Client.SetBreakpoint(ctx, req, settings.GRPC...)
 		return err
-	}, c.CallOptions.SetBreakpoint...)
+	}, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -156,15 +150,15 @@ func (c *Debugger2Client) SetBreakpoint(ctx context.Context, req *clouddebuggerp
 }
 
 // GetBreakpoint gets breakpoint information.
-func (c *Debugger2Client) GetBreakpoint(ctx context.Context, req *clouddebuggerpb.GetBreakpointRequest) (*clouddebuggerpb.GetBreakpointResponse, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+func (c *Debugger2Client) GetBreakpoint(ctx context.Context, req *clouddebuggerpb.GetBreakpointRequest, opts ...gax.CallOption) (*clouddebuggerpb.GetBreakpointResponse, error) {
+	ctx = insertXGoog(ctx, c.xGoogHeader)
+	opts = append(c.CallOptions.GetBreakpoint[0:len(c.CallOptions.GetBreakpoint):len(c.CallOptions.GetBreakpoint)], opts...)
 	var resp *clouddebuggerpb.GetBreakpointResponse
-	err := gax.Invoke(ctx, func(ctx context.Context) error {
+	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.debugger2Client.GetBreakpoint(ctx, req)
+		resp, err = c.debugger2Client.GetBreakpoint(ctx, req, settings.GRPC...)
 		return err
-	}, c.CallOptions.GetBreakpoint...)
+	}, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -172,27 +166,27 @@ func (c *Debugger2Client) GetBreakpoint(ctx context.Context, req *clouddebuggerp
 }
 
 // DeleteBreakpoint deletes the breakpoint from the debuggee.
-func (c *Debugger2Client) DeleteBreakpoint(ctx context.Context, req *clouddebuggerpb.DeleteBreakpointRequest) error {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
-	err := gax.Invoke(ctx, func(ctx context.Context) error {
+func (c *Debugger2Client) DeleteBreakpoint(ctx context.Context, req *clouddebuggerpb.DeleteBreakpointRequest, opts ...gax.CallOption) error {
+	ctx = insertXGoog(ctx, c.xGoogHeader)
+	opts = append(c.CallOptions.DeleteBreakpoint[0:len(c.CallOptions.DeleteBreakpoint):len(c.CallOptions.DeleteBreakpoint)], opts...)
+	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		_, err = c.debugger2Client.DeleteBreakpoint(ctx, req)
+		_, err = c.debugger2Client.DeleteBreakpoint(ctx, req, settings.GRPC...)
 		return err
-	}, c.CallOptions.DeleteBreakpoint...)
+	}, opts...)
 	return err
 }
 
 // ListBreakpoints lists all breakpoints for the debuggee.
-func (c *Debugger2Client) ListBreakpoints(ctx context.Context, req *clouddebuggerpb.ListBreakpointsRequest) (*clouddebuggerpb.ListBreakpointsResponse, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+func (c *Debugger2Client) ListBreakpoints(ctx context.Context, req *clouddebuggerpb.ListBreakpointsRequest, opts ...gax.CallOption) (*clouddebuggerpb.ListBreakpointsResponse, error) {
+	ctx = insertXGoog(ctx, c.xGoogHeader)
+	opts = append(c.CallOptions.ListBreakpoints[0:len(c.CallOptions.ListBreakpoints):len(c.CallOptions.ListBreakpoints)], opts...)
 	var resp *clouddebuggerpb.ListBreakpointsResponse
-	err := gax.Invoke(ctx, func(ctx context.Context) error {
+	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.debugger2Client.ListBreakpoints(ctx, req)
+		resp, err = c.debugger2Client.ListBreakpoints(ctx, req, settings.GRPC...)
 		return err
-	}, c.CallOptions.ListBreakpoints...)
+	}, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -200,15 +194,15 @@ func (c *Debugger2Client) ListBreakpoints(ctx context.Context, req *clouddebugge
 }
 
 // ListDebuggees lists all the debuggees that the user can set breakpoints to.
-func (c *Debugger2Client) ListDebuggees(ctx context.Context, req *clouddebuggerpb.ListDebuggeesRequest) (*clouddebuggerpb.ListDebuggeesResponse, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+func (c *Debugger2Client) ListDebuggees(ctx context.Context, req *clouddebuggerpb.ListDebuggeesRequest, opts ...gax.CallOption) (*clouddebuggerpb.ListDebuggeesResponse, error) {
+	ctx = insertXGoog(ctx, c.xGoogHeader)
+	opts = append(c.CallOptions.ListDebuggees[0:len(c.CallOptions.ListDebuggees):len(c.CallOptions.ListDebuggees)], opts...)
 	var resp *clouddebuggerpb.ListDebuggeesResponse
-	err := gax.Invoke(ctx, func(ctx context.Context) error {
+	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.debugger2Client.ListDebuggees(ctx, req)
+		resp, err = c.debugger2Client.ListDebuggees(ctx, req, settings.GRPC...)
 		return err
-	}, c.CallOptions.ListDebuggees...)
+	}, opts...)
 	if err != nil {
 		return nil, err
 	}

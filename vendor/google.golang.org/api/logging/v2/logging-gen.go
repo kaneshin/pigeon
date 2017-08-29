@@ -78,10 +78,9 @@ func New(client *http.Client) (*Service, error) {
 }
 
 type Service struct {
-	client                    *http.Client
-	BasePath                  string // API endpoint base URL
-	UserAgent                 string // optional additional User-Agent fragment
-	GoogleClientHeaderElement string // client header fragment, for Google use only
+	client    *http.Client
+	BasePath  string // API endpoint base URL
+	UserAgent string // optional additional User-Agent fragment
 
 	BillingAccounts *BillingAccountsService
 
@@ -101,10 +100,6 @@ func (s *Service) userAgent() string {
 		return googleapi.UserAgent
 	}
 	return googleapi.UserAgent + " " + s.UserAgent
-}
-
-func (s *Service) clientHeader() string {
-	return gensupport.GoogleClientHeader("20170210", s.GoogleClientHeaderElement)
 }
 
 func NewBillingAccountsService(s *Service) *BillingAccountsService {
@@ -308,6 +303,10 @@ type HttpRequest struct {
 	// the request was received until the response was sent.
 	Latency string `json:"latency,omitempty"`
 
+	// Protocol: Protocol used for the request. Examples: "HTTP/1.1",
+	// "HTTP/2", "websocket"
+	Protocol string `json:"protocol,omitempty"`
+
 	// Referer: The referer URL of the request, as defined in HTTP/1.1
 	// Header Field Definitions
 	// (http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html).
@@ -425,20 +424,21 @@ type ListLogEntriesRequest struct {
 	// desc". The first option returns entries in order of increasing values
 	// of LogEntry.timestamp (oldest first), and the second option returns
 	// entries in order of decreasing timestamps (newest first). Entries
-	// with equal timestamps are returned in order of LogEntry.insertId.
+	// with equal timestamps are returned in order of their insert_id
+	// values.
 	OrderBy string `json:"orderBy,omitempty"`
 
 	// PageSize: Optional. The maximum number of results to return from this
 	// request. Non-positive values are ignored. The presence of
-	// nextPageToken in the response indicates that more results might be
+	// next_page_token in the response indicates that more results might be
 	// available.
 	PageSize int64 `json:"pageSize,omitempty"`
 
 	// PageToken: Optional. If present, then retrieve the next batch of
-	// results from the preceding call to this method. pageToken must be the
-	// value of nextPageToken from the previous response. The values of
-	// other method parameters should be identical to those in the previous
-	// call.
+	// results from the preceding call to this method. page_token must be
+	// the value of next_page_token from the previous response. The values
+	// of other method parameters should be identical to those in the
+	// previous call.
 	PageToken string `json:"pageToken,omitempty"`
 
 	// ProjectIds: Deprecated. Use resource_names instead. One or more
@@ -448,13 +448,15 @@ type ListLogEntriesRequest struct {
 	// list of resources in resource_names.
 	ProjectIds []string `json:"projectIds,omitempty"`
 
-	// ResourceNames: Required. Names of one or more resources from which to
-	// retrieve log
+	// ResourceNames: Required. Names of one or more parent resources from
+	// which to retrieve log
 	// entries:
 	// "projects/[PROJECT_ID]"
 	// "organizations/[ORGANIZATION_ID]"
-	// Pro
-	// jects listed in the project_ids field are added to this list.
+	// "bi
+	// llingAccounts/[BILLING_ACCOUNT_ID]"
+	// "folders/[FOLDER_ID]"
+	// Projects listed in the project_ids field are added to this list.
 	ResourceNames []string `json:"resourceNames,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "Filter") to
@@ -482,7 +484,9 @@ func (s *ListLogEntriesRequest) MarshalJSON() ([]byte, error) {
 
 // ListLogEntriesResponse: Result returned from ListLogEntries.
 type ListLogEntriesResponse struct {
-	// Entries: A list of log entries.
+	// Entries: A list of log entries. If entries is empty, nextPageToken
+	// may still be returned, indicating that more entries may exist. See
+	// nextPageToken for more information.
 	Entries []*LogEntry `json:"entries,omitempty"`
 
 	// NextPageToken: If there might be more results than those appearing in
@@ -685,11 +689,13 @@ type LogEntry struct {
 	// with this log entry, if applicable.
 	HttpRequest *HttpRequest `json:"httpRequest,omitempty"`
 
-	// InsertId: Optional. A unique ID for the log entry. If you provide
-	// this field, the logging service considers other log entries in the
-	// same project with the same ID as duplicates which can be removed. If
-	// omitted, Stackdriver Logging will generate a unique ID for this log
-	// entry.
+	// InsertId: Optional. A unique identifier for the log entry. If you
+	// provide a value, then Stackdriver Logging considers other log entries
+	// in the same project, with the same timestamp, and with the same
+	// insert_id to be duplicates which can be removed. If omitted in new
+	// log entries, then Stackdriver Logging will insert its own unique
+	// identifier. The insert_id is used to order log entries that have the
+	// same timestamp value.
 	InsertId string `json:"insertId,omitempty"`
 
 	// JsonPayload: The log entry payload, represented as a structure that
@@ -706,6 +712,9 @@ type LogEntry struct {
 	// "projects/[PROJECT_ID]/logs/[LOG_ID]"
 	// "organizations/[ORGANIZ
 	// ATION_ID]/logs/[LOG_ID]"
+	// "billingAccounts/[BILLING_ACCOUNT_ID]/logs/[L
+	// OG_ID]"
+	// "folders/[FOLDER_ID]/logs/[LOG_ID]"
 	// [LOG_ID] must be URL-encoded within log_name. Example:
 	// "organizations/1234567890/logs/cloudresourcemanager.googleapis.com%2Fa
 	// ctivity". [LOG_ID] must be less than 512 characters long and can only
@@ -726,6 +735,10 @@ type LogEntry struct {
 	// buffer. Some Google Cloud Platform services use this field for their
 	// log entry payloads.
 	ProtoPayload googleapi.RawMessage `json:"protoPayload,omitempty"`
+
+	// ReceiveTimestamp: Output only. The time the log entry was received by
+	// Stackdriver Logging.
+	ReceiveTimestamp string `json:"receiveTimestamp,omitempty"`
 
 	// Resource: Required. The monitored resource associated with this log
 	// entry. Example: a log entry that reports a database error would be
@@ -760,8 +773,10 @@ type LogEntry struct {
 	TextPayload string `json:"textPayload,omitempty"`
 
 	// Timestamp: Optional. The time the event described by the log entry
-	// occurred. If omitted, Stackdriver Logging will use the time the log
-	// entry is received.
+	// occurred. If omitted in a new log entry, Stackdriver Logging will
+	// insert the time the log entry is received. Stackdriver Logging might
+	// reject log entries whose time stamps are more than a couple of hours
+	// in the future. Log entries with time stamps in the past are accepted.
 	Timestamp string `json:"timestamp,omitempty"`
 
 	// Trace: Optional. Resource name of the trace associated with the log
@@ -957,10 +972,8 @@ type LogMetric struct {
 	// Example: "projects/my-project/metrics/nginx%2Frequests".
 	Name string `json:"name,omitempty"`
 
-	// Version: Output only. The API version that created or updated this
-	// metric. The version also dictates the syntax of the filter
-	// expression. When a value for this field is missing, the default value
-	// of V2 should be assumed.
+	// Version: Deprecated. The API version that created or updated this
+	// metric. The v2 format is used by default and cannot be changed.
 	//
 	// Possible values:
 	//   "V2" - Stackdriver Logging API v2.
@@ -998,7 +1011,7 @@ func (s *LogMetric) MarshalJSON() ([]byte, error) {
 // following destinations in any project: a Cloud Storage bucket, a
 // BigQuery dataset, or a Cloud Pub/Sub topic. A logs filter controls
 // which log entries are exported. The sink must be created within a
-// project or organization.
+// project, organization, billing account, or folder.
 type LogSink struct {
 	// Destination: Required. The export
 	// destination:
@@ -1028,6 +1041,24 @@ type LogSink struct {
 	//
 	Filter string `json:"filter,omitempty"`
 
+	// IncludeChildren: Optional. This field applies only to sinks owned by
+	// organizations and folders. If the field is false, the default, only
+	// the logs owned by the sink's parent resource are available for
+	// export. If the field is true, then logs from all the projects,
+	// folders, and billing accounts contained in the sink's parent resource
+	// are also available for export. Whether a particular log entry from
+	// the children is exported depends on the sink's filter expression. For
+	// example, if this field is true, then the filter
+	// resource.type=gce_instance would export all Compute Engine VM
+	// instance log entries from all projects in the sink's parent. To only
+	// export entries from certain child projects, filter on the project
+	// part of the log name:
+	// logName:("projects/test-project1/" OR "projects/test-project2/")
+	// AND
+	// resource.type=gce_instance
+	//
+	IncludeChildren bool `json:"includeChildren,omitempty"`
+
 	// Name: Required. The client-assigned sink identifier, unique within
 	// the project. Example: "my-syslog-errors-to-pubsub". Sink identifiers
 	// are limited to 100 characters and can include only the following
@@ -1035,10 +1066,9 @@ type LogSink struct {
 	// underscores, hyphens, and periods.
 	Name string `json:"name,omitempty"`
 
-	// OutputVersionFormat: Optional. The log entry format to use for this
-	// sink's exported log entries. The v2 format is used by default. The v1
-	// format is deprecated and should be used only as part of a migration
-	// effort to v2. See Migration to the v2 API.
+	// OutputVersionFormat: Deprecated. The log entry format to use for this
+	// sink's exported log entries. The v2 format is used by default and
+	// cannot be changed.
 	//
 	// Possible values:
 	//   "VERSION_FORMAT_UNSPECIFIED" - An unspecified format version that
@@ -1107,13 +1137,13 @@ func (s *LogSink) MarshalJSON() ([]byte, error) {
 //
 type MonitoredResource struct {
 	// Labels: Required. Values for all of the labels listed in the
-	// associated monitored resource descriptor. For example, Cloud SQL
-	// databases use the labels "database_id" and "zone".
+	// associated monitored resource descriptor. For example, Compute Engine
+	// VM instances use the labels "project_id", "instance_id", and "zone".
 	Labels map[string]string `json:"labels,omitempty"`
 
 	// Type: Required. The monitored resource type. This field must match
 	// the type field of a MonitoredResourceDescriptor object. For example,
-	// the type of a Cloud SQL database is "cloudsql_database".
+	// the type of a Compute Engine VM instance is gce_instance.
 	Type string `json:"type,omitempty"`
 
 	// ForceSendFields is a list of field names (e.g. "Labels") to
@@ -1440,11 +1470,15 @@ func (s *SourceReference) MarshalJSON() ([]byte, error) {
 type WriteLogEntriesRequest struct {
 	// Entries: Required. The log entries to write. Values supplied for the
 	// fields log_name, resource, and labels in this entries.write request
-	// are added to those log entries that do not provide their own values
-	// for the fields.To improve throughput and to avoid exceeding the quota
-	// limit for calls to entries.write, you should write multiple log
-	// entries at once rather than calling this method for each individual
-	// log entry.
+	// are inserted into those log entries in this list that do not provide
+	// their own values.Stackdriver Logging also creates and inserts values
+	// for timestamp and insert_id if the entries do not provide them. The
+	// created insert_id for the N'th entry in this list will be greater
+	// than earlier entries and less than later entries. Otherwise, the
+	// order of log entries in this list does not matter.To improve
+	// throughput and to avoid exceeding the quota limit for calls to
+	// entries.write, you should write multiple log entries at once rather
+	// than calling this method for each individual log entry.
 	Entries []*LogEntry `json:"entries,omitempty"`
 
 	// Labels: Optional. Default labels that are added to the labels field
@@ -1459,6 +1493,9 @@ type WriteLogEntriesRequest struct {
 	// "projects/[PROJECT_ID]/logs/[LOG_ID]"
 	// "organizations/[ORGANI
 	// ZATION_ID]/logs/[LOG_ID]"
+	// "billingAccounts/[BILLING_ACCOUNT_ID]/logs/[
+	// LOG_ID]"
+	// "folders/[FOLDER_ID]/logs/[LOG_ID]"
 	// [LOG_ID] must be URL-encoded. For example,
 	// "projects/my-project-id/logs/syslog" or
 	// "organizations/1234567890/logs/cloudresourcemanager.googleapis.com%2Fa
@@ -1467,10 +1504,10 @@ type WriteLogEntriesRequest struct {
 
 	// PartialSuccess: Optional. Whether valid entries should be written
 	// even if some other entries fail due to INVALID_ARGUMENT or
-	// PERMISSION_DENIED errors. If any entry is not written, the response
-	// status will be the error associated with one of the failed entries
-	// and include error details in the form of
-	// WriteLogEntriesPartialErrors.
+	// PERMISSION_DENIED errors. If any entry is not written, then the
+	// response status is the error associated with one of the failed
+	// entries and the response includes error details keyed by the entries'
+	// zero-based index in the entries.write method.
 	PartialSuccess bool `json:"partialSuccess,omitempty"`
 
 	// Resource: Optional. A default monitored resource object that is
@@ -1563,7 +1600,6 @@ func (c *BillingAccountsLogsDeleteCall) doRequest(alt string) (*http.Response, e
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	var body io.Reader = nil
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+logName}")
@@ -1623,7 +1659,7 @@ func (c *BillingAccountsLogsDeleteCall) Do(opts ...googleapi.CallOption) (*Empty
 	//   ],
 	//   "parameters": {
 	//     "logName": {
-	//       "description": "Required. The resource name of the log to delete:\n\"projects/[PROJECT_ID]/logs/[LOG_ID]\"\n\"organizations/[ORGANIZATION_ID]/logs/[LOG_ID]\"\n[LOG_ID] must be URL-encoded. For example, \"projects/my-project-id/logs/syslog\", \"organizations/1234567890/logs/cloudresourcemanager.googleapis.com%2Factivity\". For more information about log names, see LogEntry.",
+	//       "description": "Required. The resource name of the log to delete:\n\"projects/[PROJECT_ID]/logs/[LOG_ID]\"\n\"organizations/[ORGANIZATION_ID]/logs/[LOG_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/logs/[LOG_ID]\"\n\"folders/[FOLDER_ID]/logs/[LOG_ID]\"\n[LOG_ID] must be URL-encoded. For example, \"projects/my-project-id/logs/syslog\", \"organizations/1234567890/logs/cloudresourcemanager.googleapis.com%2Factivity\". For more information about log names, see LogEntry.",
 	//       "location": "path",
 	//       "pattern": "^billingAccounts/[^/]+/logs/[^/]+$",
 	//       "required": true,
@@ -1653,8 +1689,8 @@ type BillingAccountsLogsListCall struct {
 	header_      http.Header
 }
 
-// List: Lists the logs in projects or organizations. Only logs that
-// have entries are listed.
+// List: Lists the logs in projects, organizations, folders, or billing
+// accounts. Only logs that have entries are listed.
 func (r *BillingAccountsLogsService) List(parent string) *BillingAccountsLogsListCall {
 	c := &BillingAccountsLogsListCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.parent = parent
@@ -1721,7 +1757,6 @@ func (c *BillingAccountsLogsListCall) doRequest(alt string) (*http.Response, err
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	if c.ifNoneMatch_ != "" {
 		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
 	}
@@ -1775,7 +1810,7 @@ func (c *BillingAccountsLogsListCall) Do(opts ...googleapi.CallOption) (*ListLog
 	}
 	return ret, nil
 	// {
-	//   "description": "Lists the logs in projects or organizations. Only logs that have entries are listed.",
+	//   "description": "Lists the logs in projects, organizations, folders, or billing accounts. Only logs that have entries are listed.",
 	//   "flatPath": "v2/billingAccounts/{billingAccountsId}/logs",
 	//   "httpMethod": "GET",
 	//   "id": "logging.billingAccounts.logs.list",
@@ -1795,7 +1830,7 @@ func (c *BillingAccountsLogsListCall) Do(opts ...googleapi.CallOption) (*ListLog
 	//       "type": "string"
 	//     },
 	//     "parent": {
-	//       "description": "Required. The resource name that owns the logs:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\n",
+	//       "description": "Required. The resource name that owns the logs:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]\"\n\"folders/[FOLDER_ID]\"\n",
 	//       "location": "path",
 	//       "pattern": "^billingAccounts/[^/]+$",
 	//       "required": true,
@@ -1865,8 +1900,8 @@ func (r *BillingAccountsSinksService) Create(parent string, logsink *LogSink) *B
 // "uniqueWriterIdentity": Determines the kind of IAM identity returned
 // as writer_identity in the new sink. If this value is omitted or set
 // to false, and if the sink's parent is a project, then the value
-// returned as writer_identity is cloud-logs@system.gserviceaccount.com,
-// the same identity used before the addition of writer identities to
+// returned as writer_identity is the same group or service account used
+// by Stackdriver Logging before the addition of writer identities to
 // this API. The sink's destination must be in the same project as the
 // sink itself.If this field is set to true, or if the sink is owned by
 // a non-project resource such as an organization, then the value of
@@ -1909,7 +1944,6 @@ func (c *BillingAccountsSinksCreateCall) doRequest(alt string) (*http.Response, 
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.logsink)
 	if err != nil {
@@ -1974,14 +2008,14 @@ func (c *BillingAccountsSinksCreateCall) Do(opts ...googleapi.CallOption) (*LogS
 	//   ],
 	//   "parameters": {
 	//     "parent": {
-	//       "description": "Required. The resource in which to create the sink:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\nExamples: \"projects/my-logging-project\", \"organizations/123456789\".",
+	//       "description": "Required. The resource in which to create the sink:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]\"\n\"folders/[FOLDER_ID]\"\nExamples: \"projects/my-logging-project\", \"organizations/123456789\".",
 	//       "location": "path",
 	//       "pattern": "^billingAccounts/[^/]+$",
 	//       "required": true,
 	//       "type": "string"
 	//     },
 	//     "uniqueWriterIdentity": {
-	//       "description": "Optional. Determines the kind of IAM identity returned as writer_identity in the new sink. If this value is omitted or set to false, and if the sink's parent is a project, then the value returned as writer_identity is cloud-logs@system.gserviceaccount.com, the same identity used before the addition of writer identities to this API. The sink's destination must be in the same project as the sink itself.If this field is set to true, or if the sink is owned by a non-project resource such as an organization, then the value of writer_identity will be a unique service account used only for exports from the new sink. For more information, see writer_identity in LogSink.",
+	//       "description": "Optional. Determines the kind of IAM identity returned as writer_identity in the new sink. If this value is omitted or set to false, and if the sink's parent is a project, then the value returned as writer_identity is the same group or service account used by Stackdriver Logging before the addition of writer identities to this API. The sink's destination must be in the same project as the sink itself.If this field is set to true, or if the sink is owned by a non-project resource such as an organization, then the value of writer_identity will be a unique service account used only for exports from the new sink. For more information, see writer_identity in LogSink.",
 	//       "location": "query",
 	//       "type": "boolean"
 	//     }
@@ -2050,7 +2084,6 @@ func (c *BillingAccountsSinksDeleteCall) doRequest(alt string) (*http.Response, 
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	var body io.Reader = nil
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+sinkName}")
@@ -2110,7 +2143,7 @@ func (c *BillingAccountsSinksDeleteCall) Do(opts ...googleapi.CallOption) (*Empt
 	//   ],
 	//   "parameters": {
 	//     "sinkName": {
-	//       "description": "Required. The full resource name of the sink to delete, including the parent resource and the sink identifier:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\nIt is an error if the sink does not exist. Example: \"projects/my-project-id/sinks/my-sink-id\". It is an error if the sink does not exist.",
+	//       "description": "Required. The full resource name of the sink to delete, including the parent resource and the sink identifier:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/sinks/[SINK_ID]\"\n\"folders/[FOLDER_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
 	//       "location": "path",
 	//       "pattern": "^billingAccounts/[^/]+/sinks/[^/]+$",
 	//       "required": true,
@@ -2188,7 +2221,6 @@ func (c *BillingAccountsSinksGetCall) doRequest(alt string) (*http.Response, err
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	if c.ifNoneMatch_ != "" {
 		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
 	}
@@ -2251,7 +2283,7 @@ func (c *BillingAccountsSinksGetCall) Do(opts ...googleapi.CallOption) (*LogSink
 	//   ],
 	//   "parameters": {
 	//     "sinkName": {
-	//       "description": "Required. The parent resource name of the sink:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
+	//       "description": "Required. The resource name of the sink:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/sinks/[SINK_ID]\"\n\"folders/[FOLDER_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
 	//       "location": "path",
 	//       "pattern": "^billingAccounts/[^/]+/sinks/[^/]+$",
 	//       "required": true,
@@ -2350,7 +2382,6 @@ func (c *BillingAccountsSinksListCall) doRequest(alt string) (*http.Response, er
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	if c.ifNoneMatch_ != "" {
 		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
 	}
@@ -2424,7 +2455,7 @@ func (c *BillingAccountsSinksListCall) Do(opts ...googleapi.CallOption) (*ListSi
 	//       "type": "string"
 	//     },
 	//     "parent": {
-	//       "description": "Required. The parent resource whose sinks are to be listed. Examples: \"projects/my-logging-project\", \"organizations/123456789\".",
+	//       "description": "Required. The parent resource whose sinks are to be listed:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]\"\n\"folders/[FOLDER_ID]\"\n",
 	//       "location": "path",
 	//       "pattern": "^billingAccounts/[^/]+$",
 	//       "required": true,
@@ -2466,6 +2497,167 @@ func (c *BillingAccountsSinksListCall) Pages(ctx context.Context, f func(*ListSi
 	}
 }
 
+// method id "logging.billingAccounts.sinks.patch":
+
+type BillingAccountsSinksPatchCall struct {
+	s          *Service
+	sinkNameid string
+	logsink    *LogSink
+	urlParams_ gensupport.URLParams
+	ctx_       context.Context
+	header_    http.Header
+}
+
+// Patch: Updates a sink. This method replaces the following fields in
+// the existing sink with values from the new sink: destination, filter,
+// output_version_format, start_time, and end_time. The updated sink
+// might also have a new writer_identity; see the unique_writer_identity
+// field.
+func (r *BillingAccountsSinksService) Patch(sinkNameid string, logsink *LogSink) *BillingAccountsSinksPatchCall {
+	c := &BillingAccountsSinksPatchCall{s: r.s, urlParams_: make(gensupport.URLParams)}
+	c.sinkNameid = sinkNameid
+	c.logsink = logsink
+	return c
+}
+
+// UniqueWriterIdentity sets the optional parameter
+// "uniqueWriterIdentity": See sinks.create for a description of this
+// field. When updating a sink, the effect of this field on the value of
+// writer_identity in the updated sink depends on both the old and new
+// values of this field:
+// If the old and new values of this field are both false or both true,
+// then there is no change to the sink's writer_identity.
+// If the old value is false and the new value is true, then
+// writer_identity is changed to a unique service account.
+// It is an error if the old value is true and the new value is set to
+// false or defaulted to false.
+func (c *BillingAccountsSinksPatchCall) UniqueWriterIdentity(uniqueWriterIdentity bool) *BillingAccountsSinksPatchCall {
+	c.urlParams_.Set("uniqueWriterIdentity", fmt.Sprint(uniqueWriterIdentity))
+	return c
+}
+
+// Fields allows partial responses to be retrieved. See
+// https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *BillingAccountsSinksPatchCall) Fields(s ...googleapi.Field) *BillingAccountsSinksPatchCall {
+	c.urlParams_.Set("fields", googleapi.CombineFields(s))
+	return c
+}
+
+// Context sets the context to be used in this call's Do method. Any
+// pending HTTP request will be aborted if the provided context is
+// canceled.
+func (c *BillingAccountsSinksPatchCall) Context(ctx context.Context) *BillingAccountsSinksPatchCall {
+	c.ctx_ = ctx
+	return c
+}
+
+// Header returns an http.Header that can be modified by the caller to
+// add HTTP headers to the request.
+func (c *BillingAccountsSinksPatchCall) Header() http.Header {
+	if c.header_ == nil {
+		c.header_ = make(http.Header)
+	}
+	return c.header_
+}
+
+func (c *BillingAccountsSinksPatchCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	for k, v := range c.header_ {
+		reqHeaders[k] = v
+	}
+	reqHeaders.Set("User-Agent", c.s.userAgent())
+	var body io.Reader = nil
+	body, err := googleapi.WithoutDataWrapper.JSONReader(c.logsink)
+	if err != nil {
+		return nil, err
+	}
+	reqHeaders.Set("Content-Type", "application/json")
+	c.urlParams_.Set("alt", alt)
+	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+sinkName}")
+	urls += "?" + c.urlParams_.Encode()
+	req, _ := http.NewRequest("PATCH", urls, body)
+	req.Header = reqHeaders
+	googleapi.Expand(req.URL, map[string]string{
+		"sinkName": c.sinkNameid,
+	})
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
+}
+
+// Do executes the "logging.billingAccounts.sinks.patch" call.
+// Exactly one of *LogSink or error will be non-nil. Any non-2xx status
+// code is an error. Response headers are in either
+// *LogSink.ServerResponse.Header or (if a response was returned at all)
+// in error.(*googleapi.Error).Header. Use googleapi.IsNotModified to
+// check whether the returned error was because http.StatusNotModified
+// was returned.
+func (c *BillingAccountsSinksPatchCall) Do(opts ...googleapi.CallOption) (*LogSink, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
+	res, err := c.doRequest("json")
+	if res != nil && res.StatusCode == http.StatusNotModified {
+		if res.Body != nil {
+			res.Body.Close()
+		}
+		return nil, &googleapi.Error{
+			Code:   res.StatusCode,
+			Header: res.Header,
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return nil, err
+	}
+	ret := &LogSink{
+		ServerResponse: googleapi.ServerResponse{
+			Header:         res.Header,
+			HTTPStatusCode: res.StatusCode,
+		},
+	}
+	target := &ret
+	if err := json.NewDecoder(res.Body).Decode(target); err != nil {
+		return nil, err
+	}
+	return ret, nil
+	// {
+	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, filter, output_version_format, start_time, and end_time. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
+	//   "flatPath": "v2/billingAccounts/{billingAccountsId}/sinks/{sinksId}",
+	//   "httpMethod": "PATCH",
+	//   "id": "logging.billingAccounts.sinks.patch",
+	//   "parameterOrder": [
+	//     "sinkName"
+	//   ],
+	//   "parameters": {
+	//     "sinkName": {
+	//       "description": "Required. The full resource name of the sink to update, including the parent resource and the sink identifier:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/sinks/[SINK_ID]\"\n\"folders/[FOLDER_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
+	//       "location": "path",
+	//       "pattern": "^billingAccounts/[^/]+/sinks/[^/]+$",
+	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "uniqueWriterIdentity": {
+	//       "description": "Optional. See sinks.create for a description of this field. When updating a sink, the effect of this field on the value of writer_identity in the updated sink depends on both the old and new values of this field:\nIf the old and new values of this field are both false or both true, then there is no change to the sink's writer_identity.\nIf the old value is false and the new value is true, then writer_identity is changed to a unique service account.\nIt is an error if the old value is true and the new value is set to false or defaulted to false.",
+	//       "location": "query",
+	//       "type": "boolean"
+	//     }
+	//   },
+	//   "path": "v2/{+sinkName}",
+	//   "request": {
+	//     "$ref": "LogSink"
+	//   },
+	//   "response": {
+	//     "$ref": "LogSink"
+	//   },
+	//   "scopes": [
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/logging.admin"
+	//   ]
+	// }
+
+}
+
 // method id "logging.billingAccounts.sinks.update":
 
 type BillingAccountsSinksUpdateCall struct {
@@ -2477,11 +2669,9 @@ type BillingAccountsSinksUpdateCall struct {
 	header_    http.Header
 }
 
-// Update: Updates a sink. If the named sink doesn't exist, then this
-// method is identical to sinks.create. If the named sink does exist,
-// then this method replaces the following fields in the existing sink
-// with values from the new sink: destination, filter,
-// output_version_format, start_time, and end_time. The updated filter
+// Update: Updates a sink. This method replaces the following fields in
+// the existing sink with values from the new sink: destination, filter,
+// output_version_format, start_time, and end_time. The updated sink
 // might also have a new writer_identity; see the unique_writer_identity
 // field.
 func (r *BillingAccountsSinksService) Update(sinkNameid string, logsink *LogSink) *BillingAccountsSinksUpdateCall {
@@ -2498,9 +2688,10 @@ func (r *BillingAccountsSinksService) Update(sinkNameid string, logsink *LogSink
 // values of this field:
 // If the old and new values of this field are both false or both true,
 // then there is no change to the sink's writer_identity.
-// If the old value was false and the new value is true, then
+// If the old value is false and the new value is true, then
 // writer_identity is changed to a unique service account.
-// It is an error if the old value was true and the new value is false.
+// It is an error if the old value is true and the new value is set to
+// false or defaulted to false.
 func (c *BillingAccountsSinksUpdateCall) UniqueWriterIdentity(uniqueWriterIdentity bool) *BillingAccountsSinksUpdateCall {
 	c.urlParams_.Set("uniqueWriterIdentity", fmt.Sprint(uniqueWriterIdentity))
 	return c
@@ -2537,7 +2728,6 @@ func (c *BillingAccountsSinksUpdateCall) doRequest(alt string) (*http.Response, 
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.logsink)
 	if err != nil {
@@ -2593,7 +2783,7 @@ func (c *BillingAccountsSinksUpdateCall) Do(opts ...googleapi.CallOption) (*LogS
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates a sink. If the named sink doesn't exist, then this method is identical to sinks.create. If the named sink does exist, then this method replaces the following fields in the existing sink with values from the new sink: destination, filter, output_version_format, start_time, and end_time. The updated filter might also have a new writer_identity; see the unique_writer_identity field.",
+	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, filter, output_version_format, start_time, and end_time. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
 	//   "flatPath": "v2/billingAccounts/{billingAccountsId}/sinks/{sinksId}",
 	//   "httpMethod": "PUT",
 	//   "id": "logging.billingAccounts.sinks.update",
@@ -2602,14 +2792,14 @@ func (c *BillingAccountsSinksUpdateCall) Do(opts ...googleapi.CallOption) (*LogS
 	//   ],
 	//   "parameters": {
 	//     "sinkName": {
-	//       "description": "Required. The full resource name of the sink to update, including the parent resource and the sink identifier:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
+	//       "description": "Required. The full resource name of the sink to update, including the parent resource and the sink identifier:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/sinks/[SINK_ID]\"\n\"folders/[FOLDER_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
 	//       "location": "path",
 	//       "pattern": "^billingAccounts/[^/]+/sinks/[^/]+$",
 	//       "required": true,
 	//       "type": "string"
 	//     },
 	//     "uniqueWriterIdentity": {
-	//       "description": "Optional. See sinks.create for a description of this field. When updating a sink, the effect of this field on the value of writer_identity in the updated sink depends on both the old and new values of this field:\nIf the old and new values of this field are both false or both true, then there is no change to the sink's writer_identity.\nIf the old value was false and the new value is true, then writer_identity is changed to a unique service account.\nIt is an error if the old value was true and the new value is false.",
+	//       "description": "Optional. See sinks.create for a description of this field. When updating a sink, the effect of this field on the value of writer_identity in the updated sink depends on both the old and new values of this field:\nIf the old and new values of this field are both false or both true, then there is no change to the sink's writer_identity.\nIf the old value is false and the new value is true, then writer_identity is changed to a unique service account.\nIt is an error if the old value is true and the new value is set to false or defaulted to false.",
 	//       "location": "query",
 	//       "type": "boolean"
 	//     }
@@ -2679,7 +2869,6 @@ func (c *EntriesListCall) doRequest(alt string) (*http.Response, error) {
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.listlogentriesrequest)
 	if err != nil {
@@ -2786,8 +2975,7 @@ type EntriesWriteCall struct {
 	header_                http.Header
 }
 
-// Write: Writes log entries to Stackdriver Logging. All log entries are
-// written by this method.
+// Write: Writes log entries to Stackdriver Logging.
 func (r *EntriesService) Write(writelogentriesrequest *WriteLogEntriesRequest) *EntriesWriteCall {
 	c := &EntriesWriteCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.writelogentriesrequest = writelogentriesrequest
@@ -2825,7 +3013,6 @@ func (c *EntriesWriteCall) doRequest(alt string) (*http.Response, error) {
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.writelogentriesrequest)
 	if err != nil {
@@ -2878,7 +3065,7 @@ func (c *EntriesWriteCall) Do(opts ...googleapi.CallOption) (*WriteLogEntriesRes
 	}
 	return ret, nil
 	// {
-	//   "description": "Writes log entries to Stackdriver Logging. All log entries are written by this method.",
+	//   "description": "Writes log entries to Stackdriver Logging.",
 	//   "flatPath": "v2/entries:write",
 	//   "httpMethod": "POST",
 	//   "id": "logging.entries.write",
@@ -2950,7 +3137,6 @@ func (c *FoldersLogsDeleteCall) doRequest(alt string) (*http.Response, error) {
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	var body io.Reader = nil
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+logName}")
@@ -3010,7 +3196,7 @@ func (c *FoldersLogsDeleteCall) Do(opts ...googleapi.CallOption) (*Empty, error)
 	//   ],
 	//   "parameters": {
 	//     "logName": {
-	//       "description": "Required. The resource name of the log to delete:\n\"projects/[PROJECT_ID]/logs/[LOG_ID]\"\n\"organizations/[ORGANIZATION_ID]/logs/[LOG_ID]\"\n[LOG_ID] must be URL-encoded. For example, \"projects/my-project-id/logs/syslog\", \"organizations/1234567890/logs/cloudresourcemanager.googleapis.com%2Factivity\". For more information about log names, see LogEntry.",
+	//       "description": "Required. The resource name of the log to delete:\n\"projects/[PROJECT_ID]/logs/[LOG_ID]\"\n\"organizations/[ORGANIZATION_ID]/logs/[LOG_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/logs/[LOG_ID]\"\n\"folders/[FOLDER_ID]/logs/[LOG_ID]\"\n[LOG_ID] must be URL-encoded. For example, \"projects/my-project-id/logs/syslog\", \"organizations/1234567890/logs/cloudresourcemanager.googleapis.com%2Factivity\". For more information about log names, see LogEntry.",
 	//       "location": "path",
 	//       "pattern": "^folders/[^/]+/logs/[^/]+$",
 	//       "required": true,
@@ -3040,8 +3226,8 @@ type FoldersLogsListCall struct {
 	header_      http.Header
 }
 
-// List: Lists the logs in projects or organizations. Only logs that
-// have entries are listed.
+// List: Lists the logs in projects, organizations, folders, or billing
+// accounts. Only logs that have entries are listed.
 func (r *FoldersLogsService) List(parent string) *FoldersLogsListCall {
 	c := &FoldersLogsListCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.parent = parent
@@ -3108,7 +3294,6 @@ func (c *FoldersLogsListCall) doRequest(alt string) (*http.Response, error) {
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	if c.ifNoneMatch_ != "" {
 		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
 	}
@@ -3162,7 +3347,7 @@ func (c *FoldersLogsListCall) Do(opts ...googleapi.CallOption) (*ListLogsRespons
 	}
 	return ret, nil
 	// {
-	//   "description": "Lists the logs in projects or organizations. Only logs that have entries are listed.",
+	//   "description": "Lists the logs in projects, organizations, folders, or billing accounts. Only logs that have entries are listed.",
 	//   "flatPath": "v2/folders/{foldersId}/logs",
 	//   "httpMethod": "GET",
 	//   "id": "logging.folders.logs.list",
@@ -3182,7 +3367,7 @@ func (c *FoldersLogsListCall) Do(opts ...googleapi.CallOption) (*ListLogsRespons
 	//       "type": "string"
 	//     },
 	//     "parent": {
-	//       "description": "Required. The resource name that owns the logs:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\n",
+	//       "description": "Required. The resource name that owns the logs:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]\"\n\"folders/[FOLDER_ID]\"\n",
 	//       "location": "path",
 	//       "pattern": "^folders/[^/]+$",
 	//       "required": true,
@@ -3252,8 +3437,8 @@ func (r *FoldersSinksService) Create(parent string, logsink *LogSink) *FoldersSi
 // "uniqueWriterIdentity": Determines the kind of IAM identity returned
 // as writer_identity in the new sink. If this value is omitted or set
 // to false, and if the sink's parent is a project, then the value
-// returned as writer_identity is cloud-logs@system.gserviceaccount.com,
-// the same identity used before the addition of writer identities to
+// returned as writer_identity is the same group or service account used
+// by Stackdriver Logging before the addition of writer identities to
 // this API. The sink's destination must be in the same project as the
 // sink itself.If this field is set to true, or if the sink is owned by
 // a non-project resource such as an organization, then the value of
@@ -3296,7 +3481,6 @@ func (c *FoldersSinksCreateCall) doRequest(alt string) (*http.Response, error) {
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.logsink)
 	if err != nil {
@@ -3361,14 +3545,14 @@ func (c *FoldersSinksCreateCall) Do(opts ...googleapi.CallOption) (*LogSink, err
 	//   ],
 	//   "parameters": {
 	//     "parent": {
-	//       "description": "Required. The resource in which to create the sink:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\nExamples: \"projects/my-logging-project\", \"organizations/123456789\".",
+	//       "description": "Required. The resource in which to create the sink:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]\"\n\"folders/[FOLDER_ID]\"\nExamples: \"projects/my-logging-project\", \"organizations/123456789\".",
 	//       "location": "path",
 	//       "pattern": "^folders/[^/]+$",
 	//       "required": true,
 	//       "type": "string"
 	//     },
 	//     "uniqueWriterIdentity": {
-	//       "description": "Optional. Determines the kind of IAM identity returned as writer_identity in the new sink. If this value is omitted or set to false, and if the sink's parent is a project, then the value returned as writer_identity is cloud-logs@system.gserviceaccount.com, the same identity used before the addition of writer identities to this API. The sink's destination must be in the same project as the sink itself.If this field is set to true, or if the sink is owned by a non-project resource such as an organization, then the value of writer_identity will be a unique service account used only for exports from the new sink. For more information, see writer_identity in LogSink.",
+	//       "description": "Optional. Determines the kind of IAM identity returned as writer_identity in the new sink. If this value is omitted or set to false, and if the sink's parent is a project, then the value returned as writer_identity is the same group or service account used by Stackdriver Logging before the addition of writer identities to this API. The sink's destination must be in the same project as the sink itself.If this field is set to true, or if the sink is owned by a non-project resource such as an organization, then the value of writer_identity will be a unique service account used only for exports from the new sink. For more information, see writer_identity in LogSink.",
 	//       "location": "query",
 	//       "type": "boolean"
 	//     }
@@ -3437,7 +3621,6 @@ func (c *FoldersSinksDeleteCall) doRequest(alt string) (*http.Response, error) {
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	var body io.Reader = nil
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+sinkName}")
@@ -3497,7 +3680,7 @@ func (c *FoldersSinksDeleteCall) Do(opts ...googleapi.CallOption) (*Empty, error
 	//   ],
 	//   "parameters": {
 	//     "sinkName": {
-	//       "description": "Required. The full resource name of the sink to delete, including the parent resource and the sink identifier:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\nIt is an error if the sink does not exist. Example: \"projects/my-project-id/sinks/my-sink-id\". It is an error if the sink does not exist.",
+	//       "description": "Required. The full resource name of the sink to delete, including the parent resource and the sink identifier:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/sinks/[SINK_ID]\"\n\"folders/[FOLDER_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
 	//       "location": "path",
 	//       "pattern": "^folders/[^/]+/sinks/[^/]+$",
 	//       "required": true,
@@ -3575,7 +3758,6 @@ func (c *FoldersSinksGetCall) doRequest(alt string) (*http.Response, error) {
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	if c.ifNoneMatch_ != "" {
 		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
 	}
@@ -3638,7 +3820,7 @@ func (c *FoldersSinksGetCall) Do(opts ...googleapi.CallOption) (*LogSink, error)
 	//   ],
 	//   "parameters": {
 	//     "sinkName": {
-	//       "description": "Required. The parent resource name of the sink:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
+	//       "description": "Required. The resource name of the sink:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/sinks/[SINK_ID]\"\n\"folders/[FOLDER_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
 	//       "location": "path",
 	//       "pattern": "^folders/[^/]+/sinks/[^/]+$",
 	//       "required": true,
@@ -3737,7 +3919,6 @@ func (c *FoldersSinksListCall) doRequest(alt string) (*http.Response, error) {
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	if c.ifNoneMatch_ != "" {
 		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
 	}
@@ -3811,7 +3992,7 @@ func (c *FoldersSinksListCall) Do(opts ...googleapi.CallOption) (*ListSinksRespo
 	//       "type": "string"
 	//     },
 	//     "parent": {
-	//       "description": "Required. The parent resource whose sinks are to be listed. Examples: \"projects/my-logging-project\", \"organizations/123456789\".",
+	//       "description": "Required. The parent resource whose sinks are to be listed:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]\"\n\"folders/[FOLDER_ID]\"\n",
 	//       "location": "path",
 	//       "pattern": "^folders/[^/]+$",
 	//       "required": true,
@@ -3853,6 +4034,167 @@ func (c *FoldersSinksListCall) Pages(ctx context.Context, f func(*ListSinksRespo
 	}
 }
 
+// method id "logging.folders.sinks.patch":
+
+type FoldersSinksPatchCall struct {
+	s          *Service
+	sinkNameid string
+	logsink    *LogSink
+	urlParams_ gensupport.URLParams
+	ctx_       context.Context
+	header_    http.Header
+}
+
+// Patch: Updates a sink. This method replaces the following fields in
+// the existing sink with values from the new sink: destination, filter,
+// output_version_format, start_time, and end_time. The updated sink
+// might also have a new writer_identity; see the unique_writer_identity
+// field.
+func (r *FoldersSinksService) Patch(sinkNameid string, logsink *LogSink) *FoldersSinksPatchCall {
+	c := &FoldersSinksPatchCall{s: r.s, urlParams_: make(gensupport.URLParams)}
+	c.sinkNameid = sinkNameid
+	c.logsink = logsink
+	return c
+}
+
+// UniqueWriterIdentity sets the optional parameter
+// "uniqueWriterIdentity": See sinks.create for a description of this
+// field. When updating a sink, the effect of this field on the value of
+// writer_identity in the updated sink depends on both the old and new
+// values of this field:
+// If the old and new values of this field are both false or both true,
+// then there is no change to the sink's writer_identity.
+// If the old value is false and the new value is true, then
+// writer_identity is changed to a unique service account.
+// It is an error if the old value is true and the new value is set to
+// false or defaulted to false.
+func (c *FoldersSinksPatchCall) UniqueWriterIdentity(uniqueWriterIdentity bool) *FoldersSinksPatchCall {
+	c.urlParams_.Set("uniqueWriterIdentity", fmt.Sprint(uniqueWriterIdentity))
+	return c
+}
+
+// Fields allows partial responses to be retrieved. See
+// https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *FoldersSinksPatchCall) Fields(s ...googleapi.Field) *FoldersSinksPatchCall {
+	c.urlParams_.Set("fields", googleapi.CombineFields(s))
+	return c
+}
+
+// Context sets the context to be used in this call's Do method. Any
+// pending HTTP request will be aborted if the provided context is
+// canceled.
+func (c *FoldersSinksPatchCall) Context(ctx context.Context) *FoldersSinksPatchCall {
+	c.ctx_ = ctx
+	return c
+}
+
+// Header returns an http.Header that can be modified by the caller to
+// add HTTP headers to the request.
+func (c *FoldersSinksPatchCall) Header() http.Header {
+	if c.header_ == nil {
+		c.header_ = make(http.Header)
+	}
+	return c.header_
+}
+
+func (c *FoldersSinksPatchCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	for k, v := range c.header_ {
+		reqHeaders[k] = v
+	}
+	reqHeaders.Set("User-Agent", c.s.userAgent())
+	var body io.Reader = nil
+	body, err := googleapi.WithoutDataWrapper.JSONReader(c.logsink)
+	if err != nil {
+		return nil, err
+	}
+	reqHeaders.Set("Content-Type", "application/json")
+	c.urlParams_.Set("alt", alt)
+	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+sinkName}")
+	urls += "?" + c.urlParams_.Encode()
+	req, _ := http.NewRequest("PATCH", urls, body)
+	req.Header = reqHeaders
+	googleapi.Expand(req.URL, map[string]string{
+		"sinkName": c.sinkNameid,
+	})
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
+}
+
+// Do executes the "logging.folders.sinks.patch" call.
+// Exactly one of *LogSink or error will be non-nil. Any non-2xx status
+// code is an error. Response headers are in either
+// *LogSink.ServerResponse.Header or (if a response was returned at all)
+// in error.(*googleapi.Error).Header. Use googleapi.IsNotModified to
+// check whether the returned error was because http.StatusNotModified
+// was returned.
+func (c *FoldersSinksPatchCall) Do(opts ...googleapi.CallOption) (*LogSink, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
+	res, err := c.doRequest("json")
+	if res != nil && res.StatusCode == http.StatusNotModified {
+		if res.Body != nil {
+			res.Body.Close()
+		}
+		return nil, &googleapi.Error{
+			Code:   res.StatusCode,
+			Header: res.Header,
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return nil, err
+	}
+	ret := &LogSink{
+		ServerResponse: googleapi.ServerResponse{
+			Header:         res.Header,
+			HTTPStatusCode: res.StatusCode,
+		},
+	}
+	target := &ret
+	if err := json.NewDecoder(res.Body).Decode(target); err != nil {
+		return nil, err
+	}
+	return ret, nil
+	// {
+	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, filter, output_version_format, start_time, and end_time. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
+	//   "flatPath": "v2/folders/{foldersId}/sinks/{sinksId}",
+	//   "httpMethod": "PATCH",
+	//   "id": "logging.folders.sinks.patch",
+	//   "parameterOrder": [
+	//     "sinkName"
+	//   ],
+	//   "parameters": {
+	//     "sinkName": {
+	//       "description": "Required. The full resource name of the sink to update, including the parent resource and the sink identifier:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/sinks/[SINK_ID]\"\n\"folders/[FOLDER_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
+	//       "location": "path",
+	//       "pattern": "^folders/[^/]+/sinks/[^/]+$",
+	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "uniqueWriterIdentity": {
+	//       "description": "Optional. See sinks.create for a description of this field. When updating a sink, the effect of this field on the value of writer_identity in the updated sink depends on both the old and new values of this field:\nIf the old and new values of this field are both false or both true, then there is no change to the sink's writer_identity.\nIf the old value is false and the new value is true, then writer_identity is changed to a unique service account.\nIt is an error if the old value is true and the new value is set to false or defaulted to false.",
+	//       "location": "query",
+	//       "type": "boolean"
+	//     }
+	//   },
+	//   "path": "v2/{+sinkName}",
+	//   "request": {
+	//     "$ref": "LogSink"
+	//   },
+	//   "response": {
+	//     "$ref": "LogSink"
+	//   },
+	//   "scopes": [
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/logging.admin"
+	//   ]
+	// }
+
+}
+
 // method id "logging.folders.sinks.update":
 
 type FoldersSinksUpdateCall struct {
@@ -3864,11 +4206,9 @@ type FoldersSinksUpdateCall struct {
 	header_    http.Header
 }
 
-// Update: Updates a sink. If the named sink doesn't exist, then this
-// method is identical to sinks.create. If the named sink does exist,
-// then this method replaces the following fields in the existing sink
-// with values from the new sink: destination, filter,
-// output_version_format, start_time, and end_time. The updated filter
+// Update: Updates a sink. This method replaces the following fields in
+// the existing sink with values from the new sink: destination, filter,
+// output_version_format, start_time, and end_time. The updated sink
 // might also have a new writer_identity; see the unique_writer_identity
 // field.
 func (r *FoldersSinksService) Update(sinkNameid string, logsink *LogSink) *FoldersSinksUpdateCall {
@@ -3885,9 +4225,10 @@ func (r *FoldersSinksService) Update(sinkNameid string, logsink *LogSink) *Folde
 // values of this field:
 // If the old and new values of this field are both false or both true,
 // then there is no change to the sink's writer_identity.
-// If the old value was false and the new value is true, then
+// If the old value is false and the new value is true, then
 // writer_identity is changed to a unique service account.
-// It is an error if the old value was true and the new value is false.
+// It is an error if the old value is true and the new value is set to
+// false or defaulted to false.
 func (c *FoldersSinksUpdateCall) UniqueWriterIdentity(uniqueWriterIdentity bool) *FoldersSinksUpdateCall {
 	c.urlParams_.Set("uniqueWriterIdentity", fmt.Sprint(uniqueWriterIdentity))
 	return c
@@ -3924,7 +4265,6 @@ func (c *FoldersSinksUpdateCall) doRequest(alt string) (*http.Response, error) {
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.logsink)
 	if err != nil {
@@ -3980,7 +4320,7 @@ func (c *FoldersSinksUpdateCall) Do(opts ...googleapi.CallOption) (*LogSink, err
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates a sink. If the named sink doesn't exist, then this method is identical to sinks.create. If the named sink does exist, then this method replaces the following fields in the existing sink with values from the new sink: destination, filter, output_version_format, start_time, and end_time. The updated filter might also have a new writer_identity; see the unique_writer_identity field.",
+	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, filter, output_version_format, start_time, and end_time. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
 	//   "flatPath": "v2/folders/{foldersId}/sinks/{sinksId}",
 	//   "httpMethod": "PUT",
 	//   "id": "logging.folders.sinks.update",
@@ -3989,14 +4329,14 @@ func (c *FoldersSinksUpdateCall) Do(opts ...googleapi.CallOption) (*LogSink, err
 	//   ],
 	//   "parameters": {
 	//     "sinkName": {
-	//       "description": "Required. The full resource name of the sink to update, including the parent resource and the sink identifier:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
+	//       "description": "Required. The full resource name of the sink to update, including the parent resource and the sink identifier:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/sinks/[SINK_ID]\"\n\"folders/[FOLDER_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
 	//       "location": "path",
 	//       "pattern": "^folders/[^/]+/sinks/[^/]+$",
 	//       "required": true,
 	//       "type": "string"
 	//     },
 	//     "uniqueWriterIdentity": {
-	//       "description": "Optional. See sinks.create for a description of this field. When updating a sink, the effect of this field on the value of writer_identity in the updated sink depends on both the old and new values of this field:\nIf the old and new values of this field are both false or both true, then there is no change to the sink's writer_identity.\nIf the old value was false and the new value is true, then writer_identity is changed to a unique service account.\nIt is an error if the old value was true and the new value is false.",
+	//       "description": "Optional. See sinks.create for a description of this field. When updating a sink, the effect of this field on the value of writer_identity in the updated sink depends on both the old and new values of this field:\nIf the old and new values of this field are both false or both true, then there is no change to the sink's writer_identity.\nIf the old value is false and the new value is true, then writer_identity is changed to a unique service account.\nIt is an error if the old value is true and the new value is set to false or defaulted to false.",
 	//       "location": "query",
 	//       "type": "boolean"
 	//     }
@@ -4093,7 +4433,6 @@ func (c *MonitoredResourceDescriptorsListCall) doRequest(alt string) (*http.Resp
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	if c.ifNoneMatch_ != "" {
 		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
 	}
@@ -4249,7 +4588,6 @@ func (c *OrganizationsLogsDeleteCall) doRequest(alt string) (*http.Response, err
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	var body io.Reader = nil
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+logName}")
@@ -4309,7 +4647,7 @@ func (c *OrganizationsLogsDeleteCall) Do(opts ...googleapi.CallOption) (*Empty, 
 	//   ],
 	//   "parameters": {
 	//     "logName": {
-	//       "description": "Required. The resource name of the log to delete:\n\"projects/[PROJECT_ID]/logs/[LOG_ID]\"\n\"organizations/[ORGANIZATION_ID]/logs/[LOG_ID]\"\n[LOG_ID] must be URL-encoded. For example, \"projects/my-project-id/logs/syslog\", \"organizations/1234567890/logs/cloudresourcemanager.googleapis.com%2Factivity\". For more information about log names, see LogEntry.",
+	//       "description": "Required. The resource name of the log to delete:\n\"projects/[PROJECT_ID]/logs/[LOG_ID]\"\n\"organizations/[ORGANIZATION_ID]/logs/[LOG_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/logs/[LOG_ID]\"\n\"folders/[FOLDER_ID]/logs/[LOG_ID]\"\n[LOG_ID] must be URL-encoded. For example, \"projects/my-project-id/logs/syslog\", \"organizations/1234567890/logs/cloudresourcemanager.googleapis.com%2Factivity\". For more information about log names, see LogEntry.",
 	//       "location": "path",
 	//       "pattern": "^organizations/[^/]+/logs/[^/]+$",
 	//       "required": true,
@@ -4339,8 +4677,8 @@ type OrganizationsLogsListCall struct {
 	header_      http.Header
 }
 
-// List: Lists the logs in projects or organizations. Only logs that
-// have entries are listed.
+// List: Lists the logs in projects, organizations, folders, or billing
+// accounts. Only logs that have entries are listed.
 func (r *OrganizationsLogsService) List(parent string) *OrganizationsLogsListCall {
 	c := &OrganizationsLogsListCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.parent = parent
@@ -4407,7 +4745,6 @@ func (c *OrganizationsLogsListCall) doRequest(alt string) (*http.Response, error
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	if c.ifNoneMatch_ != "" {
 		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
 	}
@@ -4461,7 +4798,7 @@ func (c *OrganizationsLogsListCall) Do(opts ...googleapi.CallOption) (*ListLogsR
 	}
 	return ret, nil
 	// {
-	//   "description": "Lists the logs in projects or organizations. Only logs that have entries are listed.",
+	//   "description": "Lists the logs in projects, organizations, folders, or billing accounts. Only logs that have entries are listed.",
 	//   "flatPath": "v2/organizations/{organizationsId}/logs",
 	//   "httpMethod": "GET",
 	//   "id": "logging.organizations.logs.list",
@@ -4481,7 +4818,7 @@ func (c *OrganizationsLogsListCall) Do(opts ...googleapi.CallOption) (*ListLogsR
 	//       "type": "string"
 	//     },
 	//     "parent": {
-	//       "description": "Required. The resource name that owns the logs:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\n",
+	//       "description": "Required. The resource name that owns the logs:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]\"\n\"folders/[FOLDER_ID]\"\n",
 	//       "location": "path",
 	//       "pattern": "^organizations/[^/]+$",
 	//       "required": true,
@@ -4551,8 +4888,8 @@ func (r *OrganizationsSinksService) Create(parent string, logsink *LogSink) *Org
 // "uniqueWriterIdentity": Determines the kind of IAM identity returned
 // as writer_identity in the new sink. If this value is omitted or set
 // to false, and if the sink's parent is a project, then the value
-// returned as writer_identity is cloud-logs@system.gserviceaccount.com,
-// the same identity used before the addition of writer identities to
+// returned as writer_identity is the same group or service account used
+// by Stackdriver Logging before the addition of writer identities to
 // this API. The sink's destination must be in the same project as the
 // sink itself.If this field is set to true, or if the sink is owned by
 // a non-project resource such as an organization, then the value of
@@ -4595,7 +4932,6 @@ func (c *OrganizationsSinksCreateCall) doRequest(alt string) (*http.Response, er
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.logsink)
 	if err != nil {
@@ -4660,14 +4996,14 @@ func (c *OrganizationsSinksCreateCall) Do(opts ...googleapi.CallOption) (*LogSin
 	//   ],
 	//   "parameters": {
 	//     "parent": {
-	//       "description": "Required. The resource in which to create the sink:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\nExamples: \"projects/my-logging-project\", \"organizations/123456789\".",
+	//       "description": "Required. The resource in which to create the sink:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]\"\n\"folders/[FOLDER_ID]\"\nExamples: \"projects/my-logging-project\", \"organizations/123456789\".",
 	//       "location": "path",
 	//       "pattern": "^organizations/[^/]+$",
 	//       "required": true,
 	//       "type": "string"
 	//     },
 	//     "uniqueWriterIdentity": {
-	//       "description": "Optional. Determines the kind of IAM identity returned as writer_identity in the new sink. If this value is omitted or set to false, and if the sink's parent is a project, then the value returned as writer_identity is cloud-logs@system.gserviceaccount.com, the same identity used before the addition of writer identities to this API. The sink's destination must be in the same project as the sink itself.If this field is set to true, or if the sink is owned by a non-project resource such as an organization, then the value of writer_identity will be a unique service account used only for exports from the new sink. For more information, see writer_identity in LogSink.",
+	//       "description": "Optional. Determines the kind of IAM identity returned as writer_identity in the new sink. If this value is omitted or set to false, and if the sink's parent is a project, then the value returned as writer_identity is the same group or service account used by Stackdriver Logging before the addition of writer identities to this API. The sink's destination must be in the same project as the sink itself.If this field is set to true, or if the sink is owned by a non-project resource such as an organization, then the value of writer_identity will be a unique service account used only for exports from the new sink. For more information, see writer_identity in LogSink.",
 	//       "location": "query",
 	//       "type": "boolean"
 	//     }
@@ -4736,7 +5072,6 @@ func (c *OrganizationsSinksDeleteCall) doRequest(alt string) (*http.Response, er
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	var body io.Reader = nil
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+sinkName}")
@@ -4796,7 +5131,7 @@ func (c *OrganizationsSinksDeleteCall) Do(opts ...googleapi.CallOption) (*Empty,
 	//   ],
 	//   "parameters": {
 	//     "sinkName": {
-	//       "description": "Required. The full resource name of the sink to delete, including the parent resource and the sink identifier:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\nIt is an error if the sink does not exist. Example: \"projects/my-project-id/sinks/my-sink-id\". It is an error if the sink does not exist.",
+	//       "description": "Required. The full resource name of the sink to delete, including the parent resource and the sink identifier:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/sinks/[SINK_ID]\"\n\"folders/[FOLDER_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
 	//       "location": "path",
 	//       "pattern": "^organizations/[^/]+/sinks/[^/]+$",
 	//       "required": true,
@@ -4874,7 +5209,6 @@ func (c *OrganizationsSinksGetCall) doRequest(alt string) (*http.Response, error
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	if c.ifNoneMatch_ != "" {
 		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
 	}
@@ -4937,7 +5271,7 @@ func (c *OrganizationsSinksGetCall) Do(opts ...googleapi.CallOption) (*LogSink, 
 	//   ],
 	//   "parameters": {
 	//     "sinkName": {
-	//       "description": "Required. The parent resource name of the sink:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
+	//       "description": "Required. The resource name of the sink:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/sinks/[SINK_ID]\"\n\"folders/[FOLDER_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
 	//       "location": "path",
 	//       "pattern": "^organizations/[^/]+/sinks/[^/]+$",
 	//       "required": true,
@@ -5036,7 +5370,6 @@ func (c *OrganizationsSinksListCall) doRequest(alt string) (*http.Response, erro
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	if c.ifNoneMatch_ != "" {
 		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
 	}
@@ -5110,7 +5443,7 @@ func (c *OrganizationsSinksListCall) Do(opts ...googleapi.CallOption) (*ListSink
 	//       "type": "string"
 	//     },
 	//     "parent": {
-	//       "description": "Required. The parent resource whose sinks are to be listed. Examples: \"projects/my-logging-project\", \"organizations/123456789\".",
+	//       "description": "Required. The parent resource whose sinks are to be listed:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]\"\n\"folders/[FOLDER_ID]\"\n",
 	//       "location": "path",
 	//       "pattern": "^organizations/[^/]+$",
 	//       "required": true,
@@ -5152,6 +5485,167 @@ func (c *OrganizationsSinksListCall) Pages(ctx context.Context, f func(*ListSink
 	}
 }
 
+// method id "logging.organizations.sinks.patch":
+
+type OrganizationsSinksPatchCall struct {
+	s          *Service
+	sinkNameid string
+	logsink    *LogSink
+	urlParams_ gensupport.URLParams
+	ctx_       context.Context
+	header_    http.Header
+}
+
+// Patch: Updates a sink. This method replaces the following fields in
+// the existing sink with values from the new sink: destination, filter,
+// output_version_format, start_time, and end_time. The updated sink
+// might also have a new writer_identity; see the unique_writer_identity
+// field.
+func (r *OrganizationsSinksService) Patch(sinkNameid string, logsink *LogSink) *OrganizationsSinksPatchCall {
+	c := &OrganizationsSinksPatchCall{s: r.s, urlParams_: make(gensupport.URLParams)}
+	c.sinkNameid = sinkNameid
+	c.logsink = logsink
+	return c
+}
+
+// UniqueWriterIdentity sets the optional parameter
+// "uniqueWriterIdentity": See sinks.create for a description of this
+// field. When updating a sink, the effect of this field on the value of
+// writer_identity in the updated sink depends on both the old and new
+// values of this field:
+// If the old and new values of this field are both false or both true,
+// then there is no change to the sink's writer_identity.
+// If the old value is false and the new value is true, then
+// writer_identity is changed to a unique service account.
+// It is an error if the old value is true and the new value is set to
+// false or defaulted to false.
+func (c *OrganizationsSinksPatchCall) UniqueWriterIdentity(uniqueWriterIdentity bool) *OrganizationsSinksPatchCall {
+	c.urlParams_.Set("uniqueWriterIdentity", fmt.Sprint(uniqueWriterIdentity))
+	return c
+}
+
+// Fields allows partial responses to be retrieved. See
+// https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *OrganizationsSinksPatchCall) Fields(s ...googleapi.Field) *OrganizationsSinksPatchCall {
+	c.urlParams_.Set("fields", googleapi.CombineFields(s))
+	return c
+}
+
+// Context sets the context to be used in this call's Do method. Any
+// pending HTTP request will be aborted if the provided context is
+// canceled.
+func (c *OrganizationsSinksPatchCall) Context(ctx context.Context) *OrganizationsSinksPatchCall {
+	c.ctx_ = ctx
+	return c
+}
+
+// Header returns an http.Header that can be modified by the caller to
+// add HTTP headers to the request.
+func (c *OrganizationsSinksPatchCall) Header() http.Header {
+	if c.header_ == nil {
+		c.header_ = make(http.Header)
+	}
+	return c.header_
+}
+
+func (c *OrganizationsSinksPatchCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	for k, v := range c.header_ {
+		reqHeaders[k] = v
+	}
+	reqHeaders.Set("User-Agent", c.s.userAgent())
+	var body io.Reader = nil
+	body, err := googleapi.WithoutDataWrapper.JSONReader(c.logsink)
+	if err != nil {
+		return nil, err
+	}
+	reqHeaders.Set("Content-Type", "application/json")
+	c.urlParams_.Set("alt", alt)
+	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+sinkName}")
+	urls += "?" + c.urlParams_.Encode()
+	req, _ := http.NewRequest("PATCH", urls, body)
+	req.Header = reqHeaders
+	googleapi.Expand(req.URL, map[string]string{
+		"sinkName": c.sinkNameid,
+	})
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
+}
+
+// Do executes the "logging.organizations.sinks.patch" call.
+// Exactly one of *LogSink or error will be non-nil. Any non-2xx status
+// code is an error. Response headers are in either
+// *LogSink.ServerResponse.Header or (if a response was returned at all)
+// in error.(*googleapi.Error).Header. Use googleapi.IsNotModified to
+// check whether the returned error was because http.StatusNotModified
+// was returned.
+func (c *OrganizationsSinksPatchCall) Do(opts ...googleapi.CallOption) (*LogSink, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
+	res, err := c.doRequest("json")
+	if res != nil && res.StatusCode == http.StatusNotModified {
+		if res.Body != nil {
+			res.Body.Close()
+		}
+		return nil, &googleapi.Error{
+			Code:   res.StatusCode,
+			Header: res.Header,
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return nil, err
+	}
+	ret := &LogSink{
+		ServerResponse: googleapi.ServerResponse{
+			Header:         res.Header,
+			HTTPStatusCode: res.StatusCode,
+		},
+	}
+	target := &ret
+	if err := json.NewDecoder(res.Body).Decode(target); err != nil {
+		return nil, err
+	}
+	return ret, nil
+	// {
+	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, filter, output_version_format, start_time, and end_time. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
+	//   "flatPath": "v2/organizations/{organizationsId}/sinks/{sinksId}",
+	//   "httpMethod": "PATCH",
+	//   "id": "logging.organizations.sinks.patch",
+	//   "parameterOrder": [
+	//     "sinkName"
+	//   ],
+	//   "parameters": {
+	//     "sinkName": {
+	//       "description": "Required. The full resource name of the sink to update, including the parent resource and the sink identifier:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/sinks/[SINK_ID]\"\n\"folders/[FOLDER_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
+	//       "location": "path",
+	//       "pattern": "^organizations/[^/]+/sinks/[^/]+$",
+	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "uniqueWriterIdentity": {
+	//       "description": "Optional. See sinks.create for a description of this field. When updating a sink, the effect of this field on the value of writer_identity in the updated sink depends on both the old and new values of this field:\nIf the old and new values of this field are both false or both true, then there is no change to the sink's writer_identity.\nIf the old value is false and the new value is true, then writer_identity is changed to a unique service account.\nIt is an error if the old value is true and the new value is set to false or defaulted to false.",
+	//       "location": "query",
+	//       "type": "boolean"
+	//     }
+	//   },
+	//   "path": "v2/{+sinkName}",
+	//   "request": {
+	//     "$ref": "LogSink"
+	//   },
+	//   "response": {
+	//     "$ref": "LogSink"
+	//   },
+	//   "scopes": [
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/logging.admin"
+	//   ]
+	// }
+
+}
+
 // method id "logging.organizations.sinks.update":
 
 type OrganizationsSinksUpdateCall struct {
@@ -5163,11 +5657,9 @@ type OrganizationsSinksUpdateCall struct {
 	header_    http.Header
 }
 
-// Update: Updates a sink. If the named sink doesn't exist, then this
-// method is identical to sinks.create. If the named sink does exist,
-// then this method replaces the following fields in the existing sink
-// with values from the new sink: destination, filter,
-// output_version_format, start_time, and end_time. The updated filter
+// Update: Updates a sink. This method replaces the following fields in
+// the existing sink with values from the new sink: destination, filter,
+// output_version_format, start_time, and end_time. The updated sink
 // might also have a new writer_identity; see the unique_writer_identity
 // field.
 func (r *OrganizationsSinksService) Update(sinkNameid string, logsink *LogSink) *OrganizationsSinksUpdateCall {
@@ -5184,9 +5676,10 @@ func (r *OrganizationsSinksService) Update(sinkNameid string, logsink *LogSink) 
 // values of this field:
 // If the old and new values of this field are both false or both true,
 // then there is no change to the sink's writer_identity.
-// If the old value was false and the new value is true, then
+// If the old value is false and the new value is true, then
 // writer_identity is changed to a unique service account.
-// It is an error if the old value was true and the new value is false.
+// It is an error if the old value is true and the new value is set to
+// false or defaulted to false.
 func (c *OrganizationsSinksUpdateCall) UniqueWriterIdentity(uniqueWriterIdentity bool) *OrganizationsSinksUpdateCall {
 	c.urlParams_.Set("uniqueWriterIdentity", fmt.Sprint(uniqueWriterIdentity))
 	return c
@@ -5223,7 +5716,6 @@ func (c *OrganizationsSinksUpdateCall) doRequest(alt string) (*http.Response, er
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.logsink)
 	if err != nil {
@@ -5279,7 +5771,7 @@ func (c *OrganizationsSinksUpdateCall) Do(opts ...googleapi.CallOption) (*LogSin
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates a sink. If the named sink doesn't exist, then this method is identical to sinks.create. If the named sink does exist, then this method replaces the following fields in the existing sink with values from the new sink: destination, filter, output_version_format, start_time, and end_time. The updated filter might also have a new writer_identity; see the unique_writer_identity field.",
+	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, filter, output_version_format, start_time, and end_time. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
 	//   "flatPath": "v2/organizations/{organizationsId}/sinks/{sinksId}",
 	//   "httpMethod": "PUT",
 	//   "id": "logging.organizations.sinks.update",
@@ -5288,14 +5780,14 @@ func (c *OrganizationsSinksUpdateCall) Do(opts ...googleapi.CallOption) (*LogSin
 	//   ],
 	//   "parameters": {
 	//     "sinkName": {
-	//       "description": "Required. The full resource name of the sink to update, including the parent resource and the sink identifier:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
+	//       "description": "Required. The full resource name of the sink to update, including the parent resource and the sink identifier:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/sinks/[SINK_ID]\"\n\"folders/[FOLDER_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
 	//       "location": "path",
 	//       "pattern": "^organizations/[^/]+/sinks/[^/]+$",
 	//       "required": true,
 	//       "type": "string"
 	//     },
 	//     "uniqueWriterIdentity": {
-	//       "description": "Optional. See sinks.create for a description of this field. When updating a sink, the effect of this field on the value of writer_identity in the updated sink depends on both the old and new values of this field:\nIf the old and new values of this field are both false or both true, then there is no change to the sink's writer_identity.\nIf the old value was false and the new value is true, then writer_identity is changed to a unique service account.\nIt is an error if the old value was true and the new value is false.",
+	//       "description": "Optional. See sinks.create for a description of this field. When updating a sink, the effect of this field on the value of writer_identity in the updated sink depends on both the old and new values of this field:\nIf the old and new values of this field are both false or both true, then there is no change to the sink's writer_identity.\nIf the old value is false and the new value is true, then writer_identity is changed to a unique service account.\nIt is an error if the old value is true and the new value is set to false or defaulted to false.",
 	//       "location": "query",
 	//       "type": "boolean"
 	//     }
@@ -5365,7 +5857,6 @@ func (c *ProjectsLogsDeleteCall) doRequest(alt string) (*http.Response, error) {
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	var body io.Reader = nil
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+logName}")
@@ -5425,7 +5916,7 @@ func (c *ProjectsLogsDeleteCall) Do(opts ...googleapi.CallOption) (*Empty, error
 	//   ],
 	//   "parameters": {
 	//     "logName": {
-	//       "description": "Required. The resource name of the log to delete:\n\"projects/[PROJECT_ID]/logs/[LOG_ID]\"\n\"organizations/[ORGANIZATION_ID]/logs/[LOG_ID]\"\n[LOG_ID] must be URL-encoded. For example, \"projects/my-project-id/logs/syslog\", \"organizations/1234567890/logs/cloudresourcemanager.googleapis.com%2Factivity\". For more information about log names, see LogEntry.",
+	//       "description": "Required. The resource name of the log to delete:\n\"projects/[PROJECT_ID]/logs/[LOG_ID]\"\n\"organizations/[ORGANIZATION_ID]/logs/[LOG_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/logs/[LOG_ID]\"\n\"folders/[FOLDER_ID]/logs/[LOG_ID]\"\n[LOG_ID] must be URL-encoded. For example, \"projects/my-project-id/logs/syslog\", \"organizations/1234567890/logs/cloudresourcemanager.googleapis.com%2Factivity\". For more information about log names, see LogEntry.",
 	//       "location": "path",
 	//       "pattern": "^projects/[^/]+/logs/[^/]+$",
 	//       "required": true,
@@ -5455,8 +5946,8 @@ type ProjectsLogsListCall struct {
 	header_      http.Header
 }
 
-// List: Lists the logs in projects or organizations. Only logs that
-// have entries are listed.
+// List: Lists the logs in projects, organizations, folders, or billing
+// accounts. Only logs that have entries are listed.
 func (r *ProjectsLogsService) List(parent string) *ProjectsLogsListCall {
 	c := &ProjectsLogsListCall{s: r.s, urlParams_: make(gensupport.URLParams)}
 	c.parent = parent
@@ -5523,7 +6014,6 @@ func (c *ProjectsLogsListCall) doRequest(alt string) (*http.Response, error) {
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	if c.ifNoneMatch_ != "" {
 		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
 	}
@@ -5577,7 +6067,7 @@ func (c *ProjectsLogsListCall) Do(opts ...googleapi.CallOption) (*ListLogsRespon
 	}
 	return ret, nil
 	// {
-	//   "description": "Lists the logs in projects or organizations. Only logs that have entries are listed.",
+	//   "description": "Lists the logs in projects, organizations, folders, or billing accounts. Only logs that have entries are listed.",
 	//   "flatPath": "v2/projects/{projectsId}/logs",
 	//   "httpMethod": "GET",
 	//   "id": "logging.projects.logs.list",
@@ -5597,7 +6087,7 @@ func (c *ProjectsLogsListCall) Do(opts ...googleapi.CallOption) (*ListLogsRespon
 	//       "type": "string"
 	//     },
 	//     "parent": {
-	//       "description": "Required. The resource name that owns the logs:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\n",
+	//       "description": "Required. The resource name that owns the logs:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]\"\n\"folders/[FOLDER_ID]\"\n",
 	//       "location": "path",
 	//       "pattern": "^projects/[^/]+$",
 	//       "required": true,
@@ -5689,7 +6179,6 @@ func (c *ProjectsMetricsCreateCall) doRequest(alt string) (*http.Response, error
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.logmetric)
 	if err != nil {
@@ -5825,7 +6314,6 @@ func (c *ProjectsMetricsDeleteCall) doRequest(alt string) (*http.Response, error
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	var body io.Reader = nil
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+metricName}")
@@ -5964,7 +6452,6 @@ func (c *ProjectsMetricsGetCall) doRequest(alt string) (*http.Response, error) {
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	if c.ifNoneMatch_ != "" {
 		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
 	}
@@ -6126,7 +6613,6 @@ func (c *ProjectsMetricsListCall) doRequest(alt string) (*http.Response, error) 
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	if c.ifNoneMatch_ != "" {
 		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
 	}
@@ -6292,7 +6778,6 @@ func (c *ProjectsMetricsUpdateCall) doRequest(alt string) (*http.Response, error
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.logmetric)
 	if err != nil {
@@ -6408,8 +6893,8 @@ func (r *ProjectsSinksService) Create(parent string, logsink *LogSink) *Projects
 // "uniqueWriterIdentity": Determines the kind of IAM identity returned
 // as writer_identity in the new sink. If this value is omitted or set
 // to false, and if the sink's parent is a project, then the value
-// returned as writer_identity is cloud-logs@system.gserviceaccount.com,
-// the same identity used before the addition of writer identities to
+// returned as writer_identity is the same group or service account used
+// by Stackdriver Logging before the addition of writer identities to
 // this API. The sink's destination must be in the same project as the
 // sink itself.If this field is set to true, or if the sink is owned by
 // a non-project resource such as an organization, then the value of
@@ -6452,7 +6937,6 @@ func (c *ProjectsSinksCreateCall) doRequest(alt string) (*http.Response, error) 
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.logsink)
 	if err != nil {
@@ -6517,14 +7001,14 @@ func (c *ProjectsSinksCreateCall) Do(opts ...googleapi.CallOption) (*LogSink, er
 	//   ],
 	//   "parameters": {
 	//     "parent": {
-	//       "description": "Required. The resource in which to create the sink:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\nExamples: \"projects/my-logging-project\", \"organizations/123456789\".",
+	//       "description": "Required. The resource in which to create the sink:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]\"\n\"folders/[FOLDER_ID]\"\nExamples: \"projects/my-logging-project\", \"organizations/123456789\".",
 	//       "location": "path",
 	//       "pattern": "^projects/[^/]+$",
 	//       "required": true,
 	//       "type": "string"
 	//     },
 	//     "uniqueWriterIdentity": {
-	//       "description": "Optional. Determines the kind of IAM identity returned as writer_identity in the new sink. If this value is omitted or set to false, and if the sink's parent is a project, then the value returned as writer_identity is cloud-logs@system.gserviceaccount.com, the same identity used before the addition of writer identities to this API. The sink's destination must be in the same project as the sink itself.If this field is set to true, or if the sink is owned by a non-project resource such as an organization, then the value of writer_identity will be a unique service account used only for exports from the new sink. For more information, see writer_identity in LogSink.",
+	//       "description": "Optional. Determines the kind of IAM identity returned as writer_identity in the new sink. If this value is omitted or set to false, and if the sink's parent is a project, then the value returned as writer_identity is the same group or service account used by Stackdriver Logging before the addition of writer identities to this API. The sink's destination must be in the same project as the sink itself.If this field is set to true, or if the sink is owned by a non-project resource such as an organization, then the value of writer_identity will be a unique service account used only for exports from the new sink. For more information, see writer_identity in LogSink.",
 	//       "location": "query",
 	//       "type": "boolean"
 	//     }
@@ -6593,7 +7077,6 @@ func (c *ProjectsSinksDeleteCall) doRequest(alt string) (*http.Response, error) 
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	var body io.Reader = nil
 	c.urlParams_.Set("alt", alt)
 	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+sinkName}")
@@ -6653,7 +7136,7 @@ func (c *ProjectsSinksDeleteCall) Do(opts ...googleapi.CallOption) (*Empty, erro
 	//   ],
 	//   "parameters": {
 	//     "sinkName": {
-	//       "description": "Required. The full resource name of the sink to delete, including the parent resource and the sink identifier:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\nIt is an error if the sink does not exist. Example: \"projects/my-project-id/sinks/my-sink-id\". It is an error if the sink does not exist.",
+	//       "description": "Required. The full resource name of the sink to delete, including the parent resource and the sink identifier:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/sinks/[SINK_ID]\"\n\"folders/[FOLDER_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
 	//       "location": "path",
 	//       "pattern": "^projects/[^/]+/sinks/[^/]+$",
 	//       "required": true,
@@ -6731,7 +7214,6 @@ func (c *ProjectsSinksGetCall) doRequest(alt string) (*http.Response, error) {
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	if c.ifNoneMatch_ != "" {
 		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
 	}
@@ -6794,7 +7276,7 @@ func (c *ProjectsSinksGetCall) Do(opts ...googleapi.CallOption) (*LogSink, error
 	//   ],
 	//   "parameters": {
 	//     "sinkName": {
-	//       "description": "Required. The parent resource name of the sink:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
+	//       "description": "Required. The resource name of the sink:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/sinks/[SINK_ID]\"\n\"folders/[FOLDER_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
 	//       "location": "path",
 	//       "pattern": "^projects/[^/]+/sinks/[^/]+$",
 	//       "required": true,
@@ -6893,7 +7375,6 @@ func (c *ProjectsSinksListCall) doRequest(alt string) (*http.Response, error) {
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	if c.ifNoneMatch_ != "" {
 		reqHeaders.Set("If-None-Match", c.ifNoneMatch_)
 	}
@@ -6967,7 +7448,7 @@ func (c *ProjectsSinksListCall) Do(opts ...googleapi.CallOption) (*ListSinksResp
 	//       "type": "string"
 	//     },
 	//     "parent": {
-	//       "description": "Required. The parent resource whose sinks are to be listed. Examples: \"projects/my-logging-project\", \"organizations/123456789\".",
+	//       "description": "Required. The parent resource whose sinks are to be listed:\n\"projects/[PROJECT_ID]\"\n\"organizations/[ORGANIZATION_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]\"\n\"folders/[FOLDER_ID]\"\n",
 	//       "location": "path",
 	//       "pattern": "^projects/[^/]+$",
 	//       "required": true,
@@ -7009,6 +7490,167 @@ func (c *ProjectsSinksListCall) Pages(ctx context.Context, f func(*ListSinksResp
 	}
 }
 
+// method id "logging.projects.sinks.patch":
+
+type ProjectsSinksPatchCall struct {
+	s          *Service
+	sinkNameid string
+	logsink    *LogSink
+	urlParams_ gensupport.URLParams
+	ctx_       context.Context
+	header_    http.Header
+}
+
+// Patch: Updates a sink. This method replaces the following fields in
+// the existing sink with values from the new sink: destination, filter,
+// output_version_format, start_time, and end_time. The updated sink
+// might also have a new writer_identity; see the unique_writer_identity
+// field.
+func (r *ProjectsSinksService) Patch(sinkNameid string, logsink *LogSink) *ProjectsSinksPatchCall {
+	c := &ProjectsSinksPatchCall{s: r.s, urlParams_: make(gensupport.URLParams)}
+	c.sinkNameid = sinkNameid
+	c.logsink = logsink
+	return c
+}
+
+// UniqueWriterIdentity sets the optional parameter
+// "uniqueWriterIdentity": See sinks.create for a description of this
+// field. When updating a sink, the effect of this field on the value of
+// writer_identity in the updated sink depends on both the old and new
+// values of this field:
+// If the old and new values of this field are both false or both true,
+// then there is no change to the sink's writer_identity.
+// If the old value is false and the new value is true, then
+// writer_identity is changed to a unique service account.
+// It is an error if the old value is true and the new value is set to
+// false or defaulted to false.
+func (c *ProjectsSinksPatchCall) UniqueWriterIdentity(uniqueWriterIdentity bool) *ProjectsSinksPatchCall {
+	c.urlParams_.Set("uniqueWriterIdentity", fmt.Sprint(uniqueWriterIdentity))
+	return c
+}
+
+// Fields allows partial responses to be retrieved. See
+// https://developers.google.com/gdata/docs/2.0/basics#PartialResponse
+// for more information.
+func (c *ProjectsSinksPatchCall) Fields(s ...googleapi.Field) *ProjectsSinksPatchCall {
+	c.urlParams_.Set("fields", googleapi.CombineFields(s))
+	return c
+}
+
+// Context sets the context to be used in this call's Do method. Any
+// pending HTTP request will be aborted if the provided context is
+// canceled.
+func (c *ProjectsSinksPatchCall) Context(ctx context.Context) *ProjectsSinksPatchCall {
+	c.ctx_ = ctx
+	return c
+}
+
+// Header returns an http.Header that can be modified by the caller to
+// add HTTP headers to the request.
+func (c *ProjectsSinksPatchCall) Header() http.Header {
+	if c.header_ == nil {
+		c.header_ = make(http.Header)
+	}
+	return c.header_
+}
+
+func (c *ProjectsSinksPatchCall) doRequest(alt string) (*http.Response, error) {
+	reqHeaders := make(http.Header)
+	for k, v := range c.header_ {
+		reqHeaders[k] = v
+	}
+	reqHeaders.Set("User-Agent", c.s.userAgent())
+	var body io.Reader = nil
+	body, err := googleapi.WithoutDataWrapper.JSONReader(c.logsink)
+	if err != nil {
+		return nil, err
+	}
+	reqHeaders.Set("Content-Type", "application/json")
+	c.urlParams_.Set("alt", alt)
+	urls := googleapi.ResolveRelative(c.s.BasePath, "v2/{+sinkName}")
+	urls += "?" + c.urlParams_.Encode()
+	req, _ := http.NewRequest("PATCH", urls, body)
+	req.Header = reqHeaders
+	googleapi.Expand(req.URL, map[string]string{
+		"sinkName": c.sinkNameid,
+	})
+	return gensupport.SendRequest(c.ctx_, c.s.client, req)
+}
+
+// Do executes the "logging.projects.sinks.patch" call.
+// Exactly one of *LogSink or error will be non-nil. Any non-2xx status
+// code is an error. Response headers are in either
+// *LogSink.ServerResponse.Header or (if a response was returned at all)
+// in error.(*googleapi.Error).Header. Use googleapi.IsNotModified to
+// check whether the returned error was because http.StatusNotModified
+// was returned.
+func (c *ProjectsSinksPatchCall) Do(opts ...googleapi.CallOption) (*LogSink, error) {
+	gensupport.SetOptions(c.urlParams_, opts...)
+	res, err := c.doRequest("json")
+	if res != nil && res.StatusCode == http.StatusNotModified {
+		if res.Body != nil {
+			res.Body.Close()
+		}
+		return nil, &googleapi.Error{
+			Code:   res.StatusCode,
+			Header: res.Header,
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer googleapi.CloseBody(res)
+	if err := googleapi.CheckResponse(res); err != nil {
+		return nil, err
+	}
+	ret := &LogSink{
+		ServerResponse: googleapi.ServerResponse{
+			Header:         res.Header,
+			HTTPStatusCode: res.StatusCode,
+		},
+	}
+	target := &ret
+	if err := json.NewDecoder(res.Body).Decode(target); err != nil {
+		return nil, err
+	}
+	return ret, nil
+	// {
+	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, filter, output_version_format, start_time, and end_time. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
+	//   "flatPath": "v2/projects/{projectsId}/sinks/{sinksId}",
+	//   "httpMethod": "PATCH",
+	//   "id": "logging.projects.sinks.patch",
+	//   "parameterOrder": [
+	//     "sinkName"
+	//   ],
+	//   "parameters": {
+	//     "sinkName": {
+	//       "description": "Required. The full resource name of the sink to update, including the parent resource and the sink identifier:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/sinks/[SINK_ID]\"\n\"folders/[FOLDER_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
+	//       "location": "path",
+	//       "pattern": "^projects/[^/]+/sinks/[^/]+$",
+	//       "required": true,
+	//       "type": "string"
+	//     },
+	//     "uniqueWriterIdentity": {
+	//       "description": "Optional. See sinks.create for a description of this field. When updating a sink, the effect of this field on the value of writer_identity in the updated sink depends on both the old and new values of this field:\nIf the old and new values of this field are both false or both true, then there is no change to the sink's writer_identity.\nIf the old value is false and the new value is true, then writer_identity is changed to a unique service account.\nIt is an error if the old value is true and the new value is set to false or defaulted to false.",
+	//       "location": "query",
+	//       "type": "boolean"
+	//     }
+	//   },
+	//   "path": "v2/{+sinkName}",
+	//   "request": {
+	//     "$ref": "LogSink"
+	//   },
+	//   "response": {
+	//     "$ref": "LogSink"
+	//   },
+	//   "scopes": [
+	//     "https://www.googleapis.com/auth/cloud-platform",
+	//     "https://www.googleapis.com/auth/logging.admin"
+	//   ]
+	// }
+
+}
+
 // method id "logging.projects.sinks.update":
 
 type ProjectsSinksUpdateCall struct {
@@ -7020,11 +7662,9 @@ type ProjectsSinksUpdateCall struct {
 	header_    http.Header
 }
 
-// Update: Updates a sink. If the named sink doesn't exist, then this
-// method is identical to sinks.create. If the named sink does exist,
-// then this method replaces the following fields in the existing sink
-// with values from the new sink: destination, filter,
-// output_version_format, start_time, and end_time. The updated filter
+// Update: Updates a sink. This method replaces the following fields in
+// the existing sink with values from the new sink: destination, filter,
+// output_version_format, start_time, and end_time. The updated sink
 // might also have a new writer_identity; see the unique_writer_identity
 // field.
 func (r *ProjectsSinksService) Update(sinkNameid string, logsink *LogSink) *ProjectsSinksUpdateCall {
@@ -7041,9 +7681,10 @@ func (r *ProjectsSinksService) Update(sinkNameid string, logsink *LogSink) *Proj
 // values of this field:
 // If the old and new values of this field are both false or both true,
 // then there is no change to the sink's writer_identity.
-// If the old value was false and the new value is true, then
+// If the old value is false and the new value is true, then
 // writer_identity is changed to a unique service account.
-// It is an error if the old value was true and the new value is false.
+// It is an error if the old value is true and the new value is set to
+// false or defaulted to false.
 func (c *ProjectsSinksUpdateCall) UniqueWriterIdentity(uniqueWriterIdentity bool) *ProjectsSinksUpdateCall {
 	c.urlParams_.Set("uniqueWriterIdentity", fmt.Sprint(uniqueWriterIdentity))
 	return c
@@ -7080,7 +7721,6 @@ func (c *ProjectsSinksUpdateCall) doRequest(alt string) (*http.Response, error) 
 		reqHeaders[k] = v
 	}
 	reqHeaders.Set("User-Agent", c.s.userAgent())
-	reqHeaders.Set("x-goog-api-client", c.s.clientHeader())
 	var body io.Reader = nil
 	body, err := googleapi.WithoutDataWrapper.JSONReader(c.logsink)
 	if err != nil {
@@ -7136,7 +7776,7 @@ func (c *ProjectsSinksUpdateCall) Do(opts ...googleapi.CallOption) (*LogSink, er
 	}
 	return ret, nil
 	// {
-	//   "description": "Updates a sink. If the named sink doesn't exist, then this method is identical to sinks.create. If the named sink does exist, then this method replaces the following fields in the existing sink with values from the new sink: destination, filter, output_version_format, start_time, and end_time. The updated filter might also have a new writer_identity; see the unique_writer_identity field.",
+	//   "description": "Updates a sink. This method replaces the following fields in the existing sink with values from the new sink: destination, filter, output_version_format, start_time, and end_time. The updated sink might also have a new writer_identity; see the unique_writer_identity field.",
 	//   "flatPath": "v2/projects/{projectsId}/sinks/{sinksId}",
 	//   "httpMethod": "PUT",
 	//   "id": "logging.projects.sinks.update",
@@ -7145,14 +7785,14 @@ func (c *ProjectsSinksUpdateCall) Do(opts ...googleapi.CallOption) (*LogSink, er
 	//   ],
 	//   "parameters": {
 	//     "sinkName": {
-	//       "description": "Required. The full resource name of the sink to update, including the parent resource and the sink identifier:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
+	//       "description": "Required. The full resource name of the sink to update, including the parent resource and the sink identifier:\n\"projects/[PROJECT_ID]/sinks/[SINK_ID]\"\n\"organizations/[ORGANIZATION_ID]/sinks/[SINK_ID]\"\n\"billingAccounts/[BILLING_ACCOUNT_ID]/sinks/[SINK_ID]\"\n\"folders/[FOLDER_ID]/sinks/[SINK_ID]\"\nExample: \"projects/my-project-id/sinks/my-sink-id\".",
 	//       "location": "path",
 	//       "pattern": "^projects/[^/]+/sinks/[^/]+$",
 	//       "required": true,
 	//       "type": "string"
 	//     },
 	//     "uniqueWriterIdentity": {
-	//       "description": "Optional. See sinks.create for a description of this field. When updating a sink, the effect of this field on the value of writer_identity in the updated sink depends on both the old and new values of this field:\nIf the old and new values of this field are both false or both true, then there is no change to the sink's writer_identity.\nIf the old value was false and the new value is true, then writer_identity is changed to a unique service account.\nIt is an error if the old value was true and the new value is false.",
+	//       "description": "Optional. See sinks.create for a description of this field. When updating a sink, the effect of this field on the value of writer_identity in the updated sink depends on both the old and new values of this field:\nIf the old and new values of this field are both false or both true, then there is no change to the sink's writer_identity.\nIf the old value is false and the new value is true, then writer_identity is changed to a unique service account.\nIt is an error if the old value is true and the new value is set to false or defaulted to false.",
 	//       "location": "query",
 	//       "type": "boolean"
 	//     }

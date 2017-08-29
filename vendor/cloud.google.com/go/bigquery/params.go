@@ -49,7 +49,7 @@ func bqTagParser(t reflect.StructTag) (name string, keep bool, other interface{}
 	return "", true, nil, nil
 }
 
-var fieldCache = fields.NewCache(bqTagParser, nil)
+var fieldCache = fields.NewCache(bqTagParser, nil, nil)
 
 var (
 	int64ParamType     = &bq.QueryParameterType{Type: "INT64"}
@@ -70,6 +70,7 @@ var (
 	typeOfGoTime   = reflect.TypeOf(time.Time{})
 )
 
+// A QueryParameter is a parameter to a query.
 type QueryParameter struct {
 	// Name is used for named parameter mode.
 	// It must match the name in the query case-insensitively.

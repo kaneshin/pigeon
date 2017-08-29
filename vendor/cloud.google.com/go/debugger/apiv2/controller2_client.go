@@ -1,4 +1,4 @@
-// Copyright 2016, Google Inc. All rights reserved.
+// Copyright 2017, Google Inc. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,11 +17,9 @@
 package debugger
 
 import (
-	"fmt"
-	"runtime"
-	"strings"
 	"time"
 
+	"cloud.google.com/go/internal/version"
 	gax "github.com/googleapis/gax-go"
 	"golang.org/x/net/context"
 	"google.golang.org/api/option"
@@ -29,7 +27,6 @@ import (
 	clouddebuggerpb "google.golang.org/genproto/googleapis/devtools/clouddebugger/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 )
 
 // Controller2CallOptions contains the retry settings for each method of Controller2Client.
@@ -42,10 +39,7 @@ type Controller2CallOptions struct {
 func defaultController2ClientOptions() []option.ClientOption {
 	return []option.ClientOption{
 		option.WithEndpoint("clouddebugger.googleapis.com:443"),
-		option.WithScopes(
-			"https://www.googleapis.com/auth/cloud-platform",
-			"https://www.googleapis.com/auth/cloud_debugger",
-		),
+		option.WithScopes(DefaultAuthScopes()...),
 	}
 }
 
@@ -83,7 +77,7 @@ type Controller2Client struct {
 	CallOptions *Controller2CallOptions
 
 	// The metadata to be sent with each request.
-	metadata metadata.MD
+	xGoogHeader []string
 }
 
 // NewController2Client creates a new controller2 client.
@@ -119,7 +113,7 @@ func NewController2Client(ctx context.Context, opts ...option.ClientOption) (*Co
 
 		controller2Client: clouddebuggerpb.NewController2Client(conn),
 	}
-	c.SetGoogleClientInfo("gax", gax.Version)
+	c.SetGoogleClientInfo()
 	return c, nil
 }
 
@@ -137,10 +131,10 @@ func (c *Controller2Client) Close() error {
 // SetGoogleClientInfo sets the name and version of the application in
 // the `x-goog-api-client` header passed on each request. Intended for
 // use by Google-written clients.
-func (c *Controller2Client) SetGoogleClientInfo(name, version string) {
-	goVersion := strings.Replace(runtime.Version(), " ", "_", -1)
-	v := fmt.Sprintf("%s/%s %s gax/%s go/%s", name, version, gapicNameVersion, gax.Version, goVersion)
-	c.metadata = metadata.Pairs("x-goog-api-client", v)
+func (c *Controller2Client) SetGoogleClientInfo(keyval ...string) {
+	kv := append([]string{"gl-go", version.Go()}, keyval...)
+	kv = append(kv, "gapic", version.Repo, "gax", gax.Version, "grpc", grpc.Version)
+	c.xGoogHeader = []string{gax.XGoogHeader(kv...)}
 }
 
 // RegisterDebuggee registers the debuggee with the controller service.
@@ -153,15 +147,15 @@ func (c *Controller2Client) SetGoogleClientInfo(name, version string) {
 // This allows the controller service to disable the agent or recover from any
 // data loss. If the debuggee is disabled by the server, the response will
 // have `is_disabled` set to `true`.
-func (c *Controller2Client) RegisterDebuggee(ctx context.Context, req *clouddebuggerpb.RegisterDebuggeeRequest) (*clouddebuggerpb.RegisterDebuggeeResponse, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+func (c *Controller2Client) RegisterDebuggee(ctx context.Context, req *clouddebuggerpb.RegisterDebuggeeRequest, opts ...gax.CallOption) (*clouddebuggerpb.RegisterDebuggeeResponse, error) {
+	ctx = insertXGoog(ctx, c.xGoogHeader)
+	opts = append(c.CallOptions.RegisterDebuggee[0:len(c.CallOptions.RegisterDebuggee):len(c.CallOptions.RegisterDebuggee)], opts...)
 	var resp *clouddebuggerpb.RegisterDebuggeeResponse
-	err := gax.Invoke(ctx, func(ctx context.Context) error {
+	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.controller2Client.RegisterDebuggee(ctx, req)
+		resp, err = c.controller2Client.RegisterDebuggee(ctx, req, settings.GRPC...)
 		return err
-	}, c.CallOptions.RegisterDebuggee...)
+	}, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -181,15 +175,15 @@ func (c *Controller2Client) RegisterDebuggee(ctx context.Context, req *clouddebu
 // Moreover, an agent should remember the breakpoints that are completed
 // until the controller removes them from the active list to avoid
 // setting those breakpoints again.
-func (c *Controller2Client) ListActiveBreakpoints(ctx context.Context, req *clouddebuggerpb.ListActiveBreakpointsRequest) (*clouddebuggerpb.ListActiveBreakpointsResponse, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+func (c *Controller2Client) ListActiveBreakpoints(ctx context.Context, req *clouddebuggerpb.ListActiveBreakpointsRequest, opts ...gax.CallOption) (*clouddebuggerpb.ListActiveBreakpointsResponse, error) {
+	ctx = insertXGoog(ctx, c.xGoogHeader)
+	opts = append(c.CallOptions.ListActiveBreakpoints[0:len(c.CallOptions.ListActiveBreakpoints):len(c.CallOptions.ListActiveBreakpoints)], opts...)
 	var resp *clouddebuggerpb.ListActiveBreakpointsResponse
-	err := gax.Invoke(ctx, func(ctx context.Context) error {
+	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.controller2Client.ListActiveBreakpoints(ctx, req)
+		resp, err = c.controller2Client.ListActiveBreakpoints(ctx, req, settings.GRPC...)
 		return err
-	}, c.CallOptions.ListActiveBreakpoints...)
+	}, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -205,15 +199,15 @@ func (c *Controller2Client) ListActiveBreakpoints(ctx context.Context, req *clou
 // `condition` and `expression` fields should not alter the breakpoint
 // semantics. These may only make changes such as canonicalizing a value
 // or snapping the location to the correct line of code.
-func (c *Controller2Client) UpdateActiveBreakpoint(ctx context.Context, req *clouddebuggerpb.UpdateActiveBreakpointRequest) (*clouddebuggerpb.UpdateActiveBreakpointResponse, error) {
-	md, _ := metadata.FromContext(ctx)
-	ctx = metadata.NewContext(ctx, metadata.Join(md, c.metadata))
+func (c *Controller2Client) UpdateActiveBreakpoint(ctx context.Context, req *clouddebuggerpb.UpdateActiveBreakpointRequest, opts ...gax.CallOption) (*clouddebuggerpb.UpdateActiveBreakpointResponse, error) {
+	ctx = insertXGoog(ctx, c.xGoogHeader)
+	opts = append(c.CallOptions.UpdateActiveBreakpoint[0:len(c.CallOptions.UpdateActiveBreakpoint):len(c.CallOptions.UpdateActiveBreakpoint)], opts...)
 	var resp *clouddebuggerpb.UpdateActiveBreakpointResponse
-	err := gax.Invoke(ctx, func(ctx context.Context) error {
+	err := gax.Invoke(ctx, func(ctx context.Context, settings gax.CallSettings) error {
 		var err error
-		resp, err = c.controller2Client.UpdateActiveBreakpoint(ctx, req)
+		resp, err = c.controller2Client.UpdateActiveBreakpoint(ctx, req, settings.GRPC...)
 		return err
-	}, c.CallOptions.UpdateActiveBreakpoint...)
+	}, opts...)
 	if err != nil {
 		return nil, err
 	}
