@@ -1,0 +1,8 @@
+module github.com/kaneshin/pigeon
+
+require (
+	cloud.google.com/go v0.27.0 // indirect
+	golang.org/x/net v0.0.0-20180826012351-8a410e7b638d // indirect
+	golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be
+	google.golang.org/api v0.0.0-20180906000440-49a9310a9145
+)
