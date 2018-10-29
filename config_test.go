@@ -32,6 +32,7 @@ func Benchmark_Config(b *testing.B) {
 		b.ResetTimer()
 		for n := 0; n < b.N; n++ {
 			c = NewConfig()
+			_ = c
 		}
 	})
 }
