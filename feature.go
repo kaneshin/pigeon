@@ -15,8 +15,10 @@ const (
 	LogoDetection
 	// LabelDetection - Run label detection.
 	LabelDetection
-	// TextDetection - Run OCR.
+	// TextDetection - Run OCR with big text
 	TextDetection
+	// DocumentTextDetection - Run OCR on document
+	DocumentTextDetection
 	// SafeSearchDetection - Run various computer vision models to
 	SafeSearchDetection
 	// ImageProperties - compute image safe-search properties.
@@ -38,6 +40,8 @@ func DetectionType(d int) string {
 		return "LABEL_DETECTION"
 	case TextDetection:
 		return "TEXT_DETECTION"
+	case DocumentTextDetection:
+		return "DOCUMENT_TEXT_DETECTION"
 	case SafeSearchDetection:
 		return "SAFE_SEARCH_DETECTION"
 	case ImageProperties:
