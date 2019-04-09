@@ -4,6 +4,6 @@ go:
 before_install:
   - make
 script:
-  - make unit-report
+  - env GO111MODULE=on make unit-report
 after_success:
   - bash <(curl -s https://codecov.io/bash)
