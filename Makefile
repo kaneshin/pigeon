@@ -36,22 +36,14 @@ release: ghr verify-github-token build
 clean:
 	$(RM) -r $(ARTIFACTS_DIR)
 
-.PHONY: unit unit-report
-unit: lint vet cyclo test
-unit-report: lint vet cyclo test-report
+.PHONY: unit lint cyclo test
+unit: lint cyclo test
 
-.PHONY: lint vet cyclo test coverage test-report
 lint: golint
 	@echo "go lint"
 	@lint=`golint ./...`; \
 		lint=`echo "$$lint" | grep -E -v -e ${IGNORE_DEPS_GOLINT}`; \
 		echo "$$lint"; if [ "$$lint" != "" ]; then exit 1; fi
-
-vet:
-	@echo "go vet"
-	@vet=`go tool vet -all -structtags -shadow $(shell ls -d */ | grep -v "vendor") 2>&1`; \
-		vet=`echo "$$vet" | grep -E -v -e ${IGNORE_DEPS_GOVET}`; \
-		echo "$$vet"; if [ "$$vet" != "" ]; then exit 1; fi
 
 cyclo: gocyclo
 	@echo "gocyclo -over 20"
@@ -62,21 +54,11 @@ cyclo: gocyclo
 test:
 	@go test $(TARGET_ONLY_PKGS)
 
-coverage: gocov
-	@gocov test $(TARGET_ONLY_PKGS) | gocov report
-
-test-report:
-	@echo "Invoking test and coverage"
-	@echo "" > coverage.txt
-	@for d in $(TARGET_ONLY_PKGS); do \
-		go test -coverprofile=profile.out -covermode=atomic $$d || exit 1; \
-		[ -f profile.out ] && cat profile.out >> coverage.txt && rm profile.out || true; done
-
 .PHONY: verify-github-token
 verify-github-token:
 	@if [ -z "$$GITHUB_TOKEN" ]; then echo '$$GITHUB_TOKEN is required'; exit 1; fi
 
-.PHONY: golint gocyclo gocov ghr gox
+.PHONY: golint gocyclo ghr gox
 golint:
 ifndef HAVE_GOLINT
 	@echo "Installing linter"
@@ -87,12 +69,6 @@ gocyclo:
 ifndef HAVE_GOCYCLO
 	@echo "Installing gocyclo"
 	@go get -u github.com/fzipp/gocyclo
-endif
-
-gocov:
-ifndef HAVE_GOCOV
-	@echo "Installing gocov"
-	@go get -u github.com/axw/gocov/gocov
 endif
 
 ghr:
