@@ -42,7 +42,7 @@ $ pigeon -face gs://bucket_name/lenna.jpg
 $ pigeon -label https://httpbin.org/image/jpeg
 ```
 
-![pigeon-cmd](https://raw.githubusercontent.com/kaneshin/pigeon/master/assets/pigeon-cmd.gif)
+![pigeon-cmd](https://raw.githubusercontent.com/kaneshin/pigeon/main/assets/pigeon-cmd.gif)
 
 ### `pigeon` package
 
@@ -181,7 +181,7 @@ if err != nil {
 
 ### Pigeon
 
-![pigeon](https://raw.githubusercontent.com/kaneshin/pigeon/master/assets/pigeon.png)
+![pigeon](https://raw.githubusercontent.com/kaneshin/pigeon/main/assets/pigeon.png)
 
 #### input
 
@@ -213,7 +213,7 @@ $ pigeon -label assets/pigeon.png
 
 ### Lenna
 
-![lenna](https://raw.githubusercontent.com/kaneshin/pigeon/master/assets/lenna.jpg)
+![lenna](https://raw.githubusercontent.com/kaneshin/pigeon/main/assets/lenna.jpg)
 
 #### input
 
